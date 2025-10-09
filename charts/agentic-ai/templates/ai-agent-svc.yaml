@@ -1,0 +1,18 @@
+{{- range .Values.namespaces }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-agent # Cant change this until we change the default value on Randoli agents side
+  namespace: {{ . }}
+  labels:
+    app: agentic-ai
+spec:
+  selector:
+    app: agentic-ai
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+  type: ClusterIP
+---
+{{- end }}

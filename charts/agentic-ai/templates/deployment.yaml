@@ -1,0 +1,67 @@
+{{- range .Values.namespaces }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agentic-ai
+  namespace: {{ . }}
+  labels:
+    app: agentic-ai
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agentic-ai
+  template:
+    metadata:
+      labels:
+        app: agentic-ai
+      annotations:
+        instrumentation.opentelemetry.io/inject-python: "opentelemetry/otel-instrumentation-v2"
+        resource.opentelemetry.io/service.name: agentic-ai
+    spec:
+      serviceAccountName: {{ $.Values.serviceAccount.name }}
+      containers:
+        - name: agent
+          image: {{ $.Values.app.image }}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: FLIGHTSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . }}-db
+                  key: password
+            - name: FLIGHTSQL_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . }}-db
+                  key: username
+          envFrom:
+            - configMapRef:
+                name: agentic-ai-config
+            - secretRef:
+                name: agentic-ai-secret
+          resources:
+            limits:
+              memory: 1Gi
+            requests:
+              cpu: 10m
+              memory: 382Mi
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 1
+              preference:
+                matchExpressions:
+                  - key: kubernetes.azure.com/scalesetpriority
+                    operator: In
+                    values:
+                      - spot
+      tolerations:
+        - key: kubernetes.azure.com/scalesetpriority
+          operator: Equal
+          value: spot
+          effect: NoSchedule
+---
+{{- end }}

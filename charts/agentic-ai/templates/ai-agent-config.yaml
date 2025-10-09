@@ -1,0 +1,18 @@
+{{- range .Values.namespaces }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agentic-ai-config
+  namespace: {{ . }}
+  labels:
+    app: agentic-ai
+data:
+  DEBUG: 'True'
+  FLIGHTSQL_URL: grpc+tcp://{{ . }}:31337
+  PROMETHEUS_URL: http://randoli-prometheus:80
+  REGION: us-east-1
+  RUNNING_IN_KUBERNETES: 'true'
+  TRACELOOP_BASE_URL: http://randoli-otel-collector.opentelemetry:4318
+  TRACELOOP_TRACE_CONTENT: 'false'
+---
+{{- end }}

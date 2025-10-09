@@ -1,0 +1,8 @@
+apiVersion: v2
+name: agentic-ai
+description: |
+  A Helm chart to deploy agentic ai into multiple namespaces,
+  and bind all service accounts to a shared ClusterRole via ClusterRoleBinding.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
