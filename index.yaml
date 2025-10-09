@@ -1,0 +1,15 @@
+apiVersion: v1
+entries:
+  agentic-ai:
+  - apiVersion: v2
+    appVersion: 0.1.0
+    created: "2025-10-09T23:22:49.907886931Z"
+    description: 'A Helm chart to deploy agentic ai into multiple namespaces, and
+      bind all service accounts to a shared ClusterRole via ClusterRoleBinding. '
+    digest: e1e6744c486634dd2111d8d8564006ae75f119bdd6ccd4a5fa286e05a33c87fd
+    name: agentic-ai
+    type: application
+    urls:
+    - https://github.com/randoli/helm-charts-ai/releases/download/agentic-ai-0.1.0/agentic-ai-0.1.0.tgz
+    version: 0.1.0
+generated: "2025-10-09T23:22:49.907892211Z"
