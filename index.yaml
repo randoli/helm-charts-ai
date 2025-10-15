@@ -12,4 +12,15 @@ entries:
     urls:
     - https://github.com/randoli/helm-charts-ai/releases/download/agentic-ai-0.1.0/agentic-ai-0.1.0.tgz
     version: 0.1.0
-generated: "2025-10-09T23:22:49.907892211Z"
+  sre-agent:
+  - apiVersion: v2
+    appVersion: 0.1.0
+    created: "2025-10-15T19:05:10.01826315Z"
+    description: 'A Helm chart to deploy Randoli SRE Agent '
+    digest: f54d9c6ffc093036d7e99a8e3e65b058ba20e29547abcc31ec1970fefc315ec6
+    name: sre-agent
+    type: application
+    urls:
+    - https://github.com/randoli/helm-charts-ai/releases/download/sre-agent-0.1.0/sre-agent-0.1.0.tgz
+    version: 0.1.0
+generated: "2025-10-15T19:05:10.01826861Z"
