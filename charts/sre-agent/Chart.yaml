@@ -1,0 +1,7 @@
+apiVersion: v2
+name: sre-agent
+description: |
+  A Helm chart to deploy Randoli SRE Agent
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: randoli-sre-agent-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: randoli-sre-agent
+data:
+  DEBUG: '{{ .Values.debug }}'
+  FLIGHTSQL_URL: '{{ .Values.flightSqlUrl }}'
+  PROMETHEUS_URL: '{{ .Values.prometheusUrl }}'
+  REGION: '{{ .Values.region }}'
+  RUNNING_IN_KUBERNETES: 'true'
+  TRACELOOP_BASE_URL: '{{ .Values.traceLoopBaseUrl }}'
+  TRACELOOP_TRACE_CONTENT: 'false'

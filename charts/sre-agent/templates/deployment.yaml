@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: randoli-sre-agent
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: randoli-sre-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: randoli-sre-agent
+  template:
+    metadata:
+      labels:
+        app: randoli-sre-agent
+    spec:
+      serviceAccountName: randoli-sre-agent
+      containers:
+        - name: agent
+          image: {{ $.Values.image }}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: FLIGHTSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: randoli-agent-db
+                  key: password
+            - name: FLIGHTSQL_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: randoli-agent-db
+                  key: username
+          envFrom:
+            - configMapRef:
+                name: randoli-sre-agent-config
+            - secretRef:
+                name: randoli-sre-agent-secret
+          resources:
+            limits:
+              memory: 1Gi
+            requests:
+              cpu: 10m
+              memory: 382Mi
+      {{- if or .Values.tolerations .Values.global.tolerations }}
+      tolerations:
+        {{- with .Values.tolerations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.global.tolerations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }} 
+      {{- end }}
+      {{- if or .Values.nodeSelector .Values.global.nodeSelector }}
+      nodeSelector:
+        {{- with .Values.nodeSelector }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.global.nodeSelector }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }} 
+      {{- end }}
+      {{- if or .Values.affinity .Values.global.affinity }}
+      affinity:
+        {{- with .Values.affinity }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.global.affinity }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }} 
+      {{- end }}    

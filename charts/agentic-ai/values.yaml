@@ -1,9 +1,0 @@
-namespaces:
-  - randoli-agents
-
-serviceAccount:
-  name: agentic-ai
-
-# Your existing manifests could be templated in `resources.yaml`
-app:
-  image: docker.io/randoli/ai-agent:0.1.0

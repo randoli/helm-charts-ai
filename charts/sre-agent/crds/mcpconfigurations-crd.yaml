@@ -1,0 +1,62 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: mcpconfigurations.mcp.randoli.ai
+spec:
+  group: mcp.randoli.ai
+  scope: Cluster
+  names:
+    kind: MCPConfiguration
+    plural: mcpconfigurations
+    singular: mcpconfiguration
+    shortNames: [mcpconf]
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          description: Configuration for MCP servers available to agents.
+          properties:
+            spec:
+              type: object
+              properties:
+                mcpServers:
+                  type: object
+                  description: Map of MCP server configs keyed by logical name 
+                  additionalProperties:
+                    type: object
+                    description: MCP server configuration.
+                    properties:
+                      transport:
+                        type: string
+                        description: Transport mechanism used by the MCP server.
+                        enum: [streamable_http, sse, stdio]
+                      url:
+                        type: string
+                        description: Base URL (or endpoint) of the MCP server.
+                        format: uri
+                      prompt:
+                        type: string
+                        description: Agent system prompt for this MCP server.
+                      headers:
+                        type: object
+                        description: Optional extra HTTP headers 
+                        additionalProperties:
+                          type: string
+                    required: [transport, url, prompt]
+                    x-kubernetes-preserve-unknown-fields: true
+              required: [mcpServers]
+          required: [spec]
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Github
+          type: string
+          jsonPath: .spec.mcpServers.github.transport
+          description: Transport for the github MCP server
+        - name: Atlassian
+          type: string
+          jsonPath: .spec.mcpServers.atlassian.transport
+          description: Transport for the atlassian MCP server
