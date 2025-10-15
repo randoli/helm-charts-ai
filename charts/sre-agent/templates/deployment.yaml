@@ -26,12 +26,12 @@ spec:
             - name: FLIGHTSQL_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: randoli-agent-db
+                  name: {{ $.Values.databaseSecretName }}
                   key: password
             - name: FLIGHTSQL_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: randoli-agent-db
+                  name: {{ $.Values.databaseSecretName }}
                   key: username
           envFrom:
             - configMapRef:
