@@ -2,7 +2,8 @@ global:
   nodeSelector:
   affinity:
   tolerations:
-image: docker.io/randoli/ai-agent:0.1.0
+annotations:
+image: docker.io/randoli/ai-agent:0.1
 secretName: randoli-sre-agent-secret
 databaseSecretName: randoli-agent-db
 debug: 'False'
@@ -10,3 +11,4 @@ flightSqlUrl: grpc+tcp://randoli-agent:31337
 prometheusUrl: http://randoli-prometheus:80
 region: us-east-1
 traceLoopBaseUrl: http://randoli-otel-collector:4318
+dailyBudgetUsd: '50'
