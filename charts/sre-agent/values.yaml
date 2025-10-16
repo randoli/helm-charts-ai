@@ -2,6 +2,7 @@ global:
   nodeSelector:
   affinity:
   tolerations:
+annotations:
 image: docker.io/randoli/ai-agent:0.1
 secretName: randoli-sre-agent-secret
 databaseSecretName: randoli-agent-db
