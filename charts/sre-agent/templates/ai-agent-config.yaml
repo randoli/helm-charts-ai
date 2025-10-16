@@ -13,3 +13,4 @@ data:
   RUNNING_IN_KUBERNETES: 'true'
   TRACELOOP_BASE_URL: '{{ .Values.traceLoopBaseUrl }}'
   TRACELOOP_TRACE_CONTENT: 'false'
+  DAILY_USAGE_BUDGET_IN_USD: '{{ .Values.dailyBudgetUsd }}'
