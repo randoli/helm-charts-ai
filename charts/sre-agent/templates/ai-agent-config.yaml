@@ -6,11 +6,12 @@ metadata:
   labels:
     app: randoli-sre-agent
 data:
+  DAILY_USAGE_BUDGET_IN_USD: '{{ .Values.dailyBudgetUsd }}'
   DEBUG: '{{ .Values.debug }}'
+  HF_HOME: /tmp/.cache
   FLIGHTSQL_URL: '{{ .Values.flightSqlUrl }}'
   PROMETHEUS_URL: '{{ .Values.prometheusUrl }}'
   REGION: '{{ .Values.region }}'
   RUNNING_IN_KUBERNETES: 'true'
   TRACELOOP_BASE_URL: '{{ .Values.traceLoopBaseUrl }}'
   TRACELOOP_TRACE_CONTENT: 'false'
-  DAILY_USAGE_BUDGET_IN_USD: '{{ .Values.dailyBudgetUsd }}'
