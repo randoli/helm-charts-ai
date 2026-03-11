@@ -6,10 +6,15 @@ metadata:
   labels:
     app: randoli-sre-agent
 data:
+  AGENT_CALLBACK_URL: '{{ .Values.agentCallbackUrl }}'
   DAILY_USAGE_BUDGET_IN_USD: '{{ .Values.dailyBudgetUsd }}'
   DEBUG: '{{ .Values.debug }}'
+  ENABLED_NAMESPACES: '{{ .Values.enabledNamespaces }}'
   HF_HOME: /tmp/.cache
   FLIGHTSQL_URL: '{{ .Values.flightSqlUrl }}'
+  LOG_LOKI_URL: '{{ .Values.logLokiUrl }}'
+  OTEL_EXPORTER_OTLP_ENDPOINT:  '{{ .Values.otelExporterEndpoint }}'
+  OTEL_SERVICE_NAME: randoli-sre-agent
   PROMETHEUS_URL: '{{ .Values.prometheusUrl }}'
   REGION: '{{ .Values.region }}'
   RUNNING_IN_KUBERNETES: 'true'
