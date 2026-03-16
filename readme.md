@@ -13,7 +13,7 @@ data:
 kind: Secret
 metadata:
   name: randoli-sre-agent-secret
-  name: randoli-agents
+  namespace: randoli-agents
 type: Opaque
 
 ```
