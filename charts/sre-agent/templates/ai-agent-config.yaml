@@ -10,6 +10,7 @@ data:
   DAILY_USAGE_BUDGET_IN_USD: '{{ .Values.dailyBudgetUsd }}'
   DEBUG: '{{ .Values.debug }}'
   ENABLED_NAMESPACES: '{{ .Values.enabledNamespaces }}'
+  ENABLED_WORKLOADS: '{{ .Values.enabledWorkloads }}'
   HF_HOME: /tmp/.cache
   FLIGHTSQL_URL: '{{ .Values.flightSqlUrl }}'
   LLM_PROVIDER: '{{ .Values.llmProvider }}'
