@@ -10,8 +10,10 @@ data:
   DAILY_USAGE_BUDGET_IN_USD: '{{ .Values.dailyBudgetUsd }}'
   DEBUG: '{{ .Values.debug }}'
   ENABLED_NAMESPACES: '{{ .Values.enabledNamespaces }}'
+  ENABLED_WORKLOADS: '{{ .Values.enabledWorkloads }}'
   HF_HOME: /tmp/.cache
   FLIGHTSQL_URL: '{{ .Values.flightSqlUrl }}'
+  LLM_PROVIDER: '{{ .Values.llmProvider }}'
   LOG_LOKI_URL: '{{ .Values.logLokiUrl }}'
   OTEL_EXPORTER_OTLP_ENDPOINT:  '{{ .Values.otelExporterEndpoint }}'
   OTEL_SERVICE_NAME: randoli-sre-agent
@@ -20,3 +22,7 @@ data:
   RUNNING_IN_KUBERNETES: 'true'
   TRACELOOP_BASE_URL: '{{ .Values.traceLoopBaseUrl }}'
   TRACELOOP_TRACE_CONTENT: 'false'
+  TEMPO_URL: '{{ .Values.tempoUrl }}'
+  RCA_LATENCY_ANALYSIS_MODE: statistical
+  RCA_RESOURCE_ANALYSIS_MODE: statistical
+  RCA_ERROR_ANALYSIS_MODE: statistical
