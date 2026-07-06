@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: randoli-sre-agent-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: randoli-sre-agent
+data:
+  AGENT_CALLBACK_URL: '{{ .Values.agentCallbackUrl }}'
+  BEDROCK_COST_CLAUDE_3_5_SONNET_20240620_INPUT : '0.000006'
+  BEDROCK_COST_CLAUDE_3_5_SONNET_20240620_OUTPUT : '0.000030'
+  BEDROCK_COST_CLAUDE_3_5_SONNET_20241022_INPUT : '0.000006'
+  BEDROCK_COST_CLAUDE_3_5_SONNET_20241022_OUTPUT : '0.000030'
+  BEDROCK_COST_CLAUDE_3_SONNET_20240229_INPUT : '0.000003'
+  BEDROCK_COST_CLAUDE_3_SONNET_20240229_OUTPUT : '0.000015'
+  BEDROCK_COST_CLAUDE_SONNET_4_5_20250929_INPUT : '0.0000033'
+  BEDROCK_COST_CLAUDE_SONNET_4_5_20250929_OUTPUT : '0.0000165'
+  BEDROCK_COST_QWEN3_CODER_30B_A3B_INPUT : '0.00000015'
+  BEDROCK_COST_QWEN3_CODER_30B_A3B_OUTPUT : '0.0000006'
+  BEDROCK_COST_QWEN3_CODER_480B_A35B_INPUT : '0.0000015'
+  BEDROCK_COST_QWEN3_CODER_480B_A35B_OUTPUT : '0.0000075'
+  DAILY_USAGE_BUDGET_IN_USD: '{{ .Values.dailyBudgetUsd }}'
+  DEBUG: '{{ .Values.debug }}'
+  ENABLED_NAMESPACES: '{{ .Values.enabledNamespaces }}'
+  ENABLED_WORKLOADS: '{{ .Values.enabledWorkloads }}'
+  FLIGHTSQL_URL: '{{ .Values.flightSqlUrl }}'
+  LLM_PROVIDER: '{{ .Values.llmProvider }}'
+  LOG_LOKI_URL: '{{ .Values.logLokiUrl }}'
+  LOG_PROVIDER : loki
+  MCP_MAX_ITERATIONS : '{{ .Values.maxIterationsMCP }}'
+  OTEL_EXPORTER_OTLP_ENDPOINT:  '{{ .Values.otelExporterEndpoint }}'
+  OTEL_EXPORTER_OTLP_PROTOCOL : grpc
+  OTEL_SERVICE_NAME: randoli-sre-agent
+  OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT : '1000'
+  OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT : '100000'
+  OTEL_SPAN_EVENT_COUNT_LIMIT : '256'
+  PROMETHEUS_URL: '{{ .Values.prometheusUrl }}'
+  RCA_INVESTIGATOR_MAX_ITERATIONS : '{{ .Values.maxIterationsRCA }}'
+  REGION: '{{ .Values.region }}'
+  RUNNING_IN_KUBERNETES: 'true'
+  TRACELOOP_BASE_URL: '{{ .Values.traceLoopBaseUrl }}'
+  TRACELOOP_TRACE_CONTENT: 'false'
+  TEMPO_URL: '{{ .Values.tempoUrl }}'
+  TRACE_PROVIDER : tempo
+  RCA_LATENCY_ANALYSIS_MODE: statistical
+  RCA_RESOURCE_ANALYSIS_MODE: statistical
+  RCA_ERROR_ANALYSIS_MODE: statistical

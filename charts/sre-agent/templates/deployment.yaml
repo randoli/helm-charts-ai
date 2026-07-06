@@ -15,7 +15,7 @@ spec:
       labels:
         app: randoli-sre-agent
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/ai-agent-config.yaml") . | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         {{- if .Values.annotations }}
           {{- with .Values.annotations }}
           {{- toYaml . | nindent 8 }}
