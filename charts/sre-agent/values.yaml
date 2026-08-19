@@ -11,13 +11,13 @@ enabledNamespaces: 'namespace1,namespace2'
 enabledWorkloads: ''
 flightSqlUrl: grpc+tcp://randoli-agent:31337
 image: docker.io/randoli/ai-agent:0.2
-logLokiUrl: http://randoli-rok-loki:3100
+logLokiUrl: http://randoli-obs-loki:3100
 llmProvider: aws
 maxIterationsMCP: '25'
 maxIterationsRCA: '25'
 otelExporterEndpoint: http://randoli-otel-collector:4317
-prometheusUrl: http://randoli-prometheus:80
+prometheusUrl: http://randoli-obs-prometheus:80
 region: us-east-1
 secretName: randoli-sre-agent-secret
-tempoUrl: http://randoli-rok-tempo:3200
+tempoUrl: http://randoli-obs-tempo:3200
 traceLoopBaseUrl: http://randoli-otel-collector:4318

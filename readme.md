@@ -21,21 +21,36 @@ type: Opaque
 ## Installation
 Add the repository
 ```
-helm repo add randoli https://randoli.github.io/helm-charts-ai
+helm repo add randoli https://helm.randoli.io
 ```
 
 Install the Helm Chart
 ```
-helm install randoli-sre-agent randoli/randoli-agent -n randoli-agents --set enabledNamespaces='<namespace1\,namespace2>'
+helm install sre-agent randoli/sre-agent -n randoli-agents --set enabledNamespaces='<namespace1\,namespace2>'
 ```
 
 NOTE: replace <namespace1\,namespace2> with a list of namespaces which can be analyzed by the Randoli SRE agent, separated by a escaped comma.
+
+### Install together with the Randoli agent
+
+The SRE agent is also bundled into the `randoli-agent` umbrella chart as an optional
+dependency. When installed this way, all endpoint configuration (Prometheus, Loki, Tempo,
+OTel collector, agent callback/Flight SQL URLs) is provided by the umbrella chart:
+
+```
+helm install randoli randoli/randoli-agent -n randoli-agents \
+  --set sreAgent.enabled=true \
+  --set sreAgent.enabledNamespaces='<namespace1\,namespace2>'
+```
+
+> The legacy repository URL `https://randoli.github.io/helm-charts-ai` is frozen at
+> sre-agent 0.1.0 and no longer receives updates. Use `https://helm.randoli.io`.
 
 ## Further configuration
 
 - To change the daily budget for the Bedrock calls, set the value of dailyBudgetUsd flag (value in American dollars). Example:
 
-`helm upgrade randoli-sre-agent randoli/randoli-agent -n randoli-agents --set dailyBudgetUsd=30`
+`helm upgrade sre-agent randoli/sre-agent -n randoli-agents --set dailyBudgetUsd=30`
 
 - For further configuration, check the [values.yaml](charts/sre-agent/values.yaml) file
 
