@@ -8,7 +8,11 @@ set -euo pipefail
 #   2. charts/sre-agent/Chart.yaml version must match the tag exactly.
 #   3. Tagged commit must be reachable from the right branch:
 #        stable      -> main only
-#        pre-release -> main or a release/X.Y.Z branch
+#        pre-release -> main, or the release/X.Y.Z branch matching the tag's
+#                       version (0.3.0-rc.1 -> release/0.3.0). A release branch
+#                       lives through several rc iterations before merging to
+#                       main; the correspondence keeps it from drifting into
+#                       tags of a different version line.
 #
 # Reads the tag from GITHUB_REF_NAME (set by GitHub Actions on tag push) and
 # falls back to the tag pointing at HEAD for local runs. Writes 'version' and
@@ -48,18 +52,22 @@ echo "Tagged commit ${head_sha:0:8} is on remote branches:"
 echo "$contains" | sed 's/^/  /'
 
 on_main=false
-on_release=false
+release_branch=$(grep -xE '^release/[0-9]+\.[0-9]+\.[0-9]+$' <<<"$contains" | head -n1 || true)
 grep -qxF main <<<"$contains" && on_main=true
-grep -qxE '^release/[0-9]+\.[0-9]+\.[0-9]+$' <<<"$contains" && on_release=true
 
 if [[ "$is_stable" == "true" ]]; then
   if [[ "$on_main" != "true" ]]; then
     echo "::error::Stable tag '$version' must point to a commit reachable from 'main'."
     exit 1
   fi
-else
-  if [[ "$on_main" != "true" && "$on_release" != "true" ]]; then
-    echo "::error::Pre-release tag '$version' must point to a commit reachable from 'main' or a 'release/X.Y.Z' branch."
+elif [[ "$on_main" != "true" ]]; then
+  expected_branch="release/${version%%-*}"
+  if [[ "$release_branch" != "$expected_branch" ]]; then
+    if [[ -n "$release_branch" ]]; then
+      echo "::error::Pre-release tag '$version' is on release branch '$release_branch'; it belongs on '$expected_branch'."
+    else
+      echo "::error::Pre-release tag '$version' must point to a commit reachable from 'main' or '$expected_branch'."
+    fi
     exit 1
   fi
 fi
