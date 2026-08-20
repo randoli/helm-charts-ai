@@ -1,0 +1,93 @@
+name: Release Charts
+
+# Releases are cut by pushing a semver tag (no 'v' prefix, so the tag is
+# identical to the chart version):
+#   X.Y.Z                    stable      — commit must be reachable from main
+#   X.Y.Z-(rc|alpha|beta).N  pre-release — commit must be reachable from main
+#                                          or a release/X.Y.Z branch
+# scripts/validate-release.sh enforces both rules plus Chart.yaml version == tag.
+on:
+  push:
+    tags:
+      - '[0-9]*'
+
+permissions:
+  contents: write   # GitHub Releases + gh-pages push
+  packages: write   # GHCR push
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate chart version, branch, and git tag
+        id: validate
+        run: ./scripts/validate-release.sh
+
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Package sre-agent
+        run: |
+          mkdir -p .cr-release-packages
+          helm package charts/sre-agent --destination .cr-release-packages
+
+      # The public chart index lives on the gh-pages branch of randoli/helm-charts
+      # (served as helm.randoli.io). chart-releaser merges this repo's releases into
+      # that shared index.yaml — it only ever appends entries, so the randoli-agent
+      # entries managed by the other repo are preserved.
+      # HELM_CHARTS_PAGES_TOKEN: fine-grained PAT with Contents read/write on
+      # randoli/helm-charts only.
+      - name: Add shared pages remote (randoli/helm-charts)
+        env:
+          PAGES_TOKEN: ${{ secrets.HELM_CHARTS_PAGES_TOKEN }}
+        run: |
+          git remote add pages "https://x-access-token:${PAGES_TOKEN}@github.com/randoli/helm-charts.git"
+          git fetch pages gh-pages
+
+      - name: Run chart-releaser
+        # Same pin as randoli/helm-charts (one commit past v1.7.0, pending a v1.7.1
+        # tag; contains the fix for helm/chart-releaser-action#171).
+        uses: helm/chart-releaser-action@3e001cb8c68933439c7e721650f20a07a1a5c61e # v1.7.0+1
+        with:
+          skip_packaging: true
+          # Only stable versions become "Latest" — pre-releases keep the badge off
+          # even when cut from main.
+          mark_as_latest: ${{ steps.validate.outputs.is_stable }}
+        env:
+          # Releases (tags + .tgz assets) are created in THIS repo.
+          CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CR_SKIP_EXISTING: true
+          # The index update is pushed to the 'pages' remote = randoli/helm-charts gh-pages.
+          CR_REMOTE: pages
+
+      - name: Mark GitHub Release as pre-release
+        if: steps.validate.outputs.is_stable == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="sre-agent-${{ steps.validate.outputs.version }}"
+          gh release edit "$tag" --prerelease
+
+      - name: Login to GHCR
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push charts to GHCR
+        run: |
+          shopt -s nullglob
+          for pkg in .cr-release-packages/*.tgz; do
+            helm push "$pkg" "oci://ghcr.io/${GITHUB_REPOSITORY_OWNER}/helm-charts"
+          done

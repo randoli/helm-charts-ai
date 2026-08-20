@@ -25,7 +25,7 @@ spec:
       serviceAccountName: randoli-sre-agent
       containers:
         - name: agent
-          image: {{ $.Values.image }}
+          image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag | default $.Chart.AppVersion }}"
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
@@ -33,18 +33,18 @@ spec:
             - name: FLIGHTSQL_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ $.Values.databaseSecretName }}
+                  name: {{ $.Values.dataPlane.databaseSecretName }}
                   key: password
             - name: FLIGHTSQL_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: {{ $.Values.databaseSecretName }}
+                  name: {{ $.Values.dataPlane.databaseSecretName }}
                   key: username
           envFrom:
             - configMapRef:
                 name: randoli-sre-agent-config
             - secretRef:
-                name: randoli-sre-agent-secret
+                name: {{ $.Values.llm.credentialsSecretName }}
           resources:
             limits:
               memory: 1Gi
@@ -77,4 +77,4 @@ spec:
         {{- with .Values.global.affinity }}
         {{- toYaml . | nindent 8 }}
         {{- end }} 
-      {{- end }}    
+      {{- end }}
