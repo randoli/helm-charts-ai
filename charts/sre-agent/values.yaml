@@ -4,7 +4,7 @@
 # Install modes:
 #   * As a dependency of the randoli-agent (data plane) umbrella chart: the
 #     defaults in `observability:` and `dataPlane:` already point at the
-#     umbrella's service names, so only `agent.enabledNamespaces` must be set.
+#     umbrella's service names, so only `analysis.enabledNamespaces` must be set.
 #   * Standalone: override EVERY value in `observability:` and `dataPlane:` to
 #     point at your own Prometheus / Loki / Tempo / OTel collector / Flight
 #     SQL / callback endpoints, and create the required secrets (see readme).

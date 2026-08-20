@@ -6,7 +6,7 @@ metadata:
   labels:
     app: randoli-sre-agent
 data:
-  AGENT_CALLBACK_URL: '{{ .Values.dataPlane.agentCallbackUrl }}'
+  AGENT_CALLBACK_URL: '{{ tpl .Values.dataPlane.agentCallbackUrl . }}'
   BEDROCK_COST_CLAUDE_3_5_SONNET_20240620_INPUT : '0.000006'
   BEDROCK_COST_CLAUDE_3_5_SONNET_20240620_OUTPUT : '0.000030'
   BEDROCK_COST_CLAUDE_3_5_SONNET_20241022_INPUT : '0.000006'
@@ -23,24 +23,24 @@ data:
   DEBUG: '{{ .Values.debug }}'
   ENABLED_NAMESPACES: '{{ .Values.analysis.enabledNamespaces }}'
   ENABLED_WORKLOADS: '{{ .Values.analysis.enabledWorkloads }}'
-  FLIGHTSQL_URL: '{{ .Values.dataPlane.flightSqlUrl }}'
+  FLIGHTSQL_URL: '{{ tpl .Values.dataPlane.flightSqlUrl . }}'
   LLM_PROVIDER: '{{ .Values.llm.provider }}'
-  LOG_LOKI_URL: '{{ .Values.observability.lokiUrl }}'
+  LOG_LOKI_URL: '{{ tpl .Values.observability.lokiUrl . }}'
   LOG_PROVIDER : loki
   MCP_MAX_ITERATIONS : '{{ .Values.analysis.maxIterationsMCP }}'
-  OTEL_EXPORTER_OTLP_ENDPOINT:  '{{ .Values.observability.otelExporterEndpoint }}'
+  OTEL_EXPORTER_OTLP_ENDPOINT:  '{{ tpl .Values.observability.otelExporterEndpoint . }}'
   OTEL_EXPORTER_OTLP_PROTOCOL : grpc
   OTEL_SERVICE_NAME: randoli-sre-agent
   OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT : '1000'
   OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT : '100000'
   OTEL_SPAN_EVENT_COUNT_LIMIT : '256'
-  PROMETHEUS_URL: '{{ .Values.observability.prometheusUrl }}'
+  PROMETHEUS_URL: '{{ tpl .Values.observability.prometheusUrl . }}'
   RCA_INVESTIGATOR_MAX_ITERATIONS : '{{ .Values.analysis.maxIterationsRCA }}'
   REGION: '{{ .Values.llm.region }}'
   RUNNING_IN_KUBERNETES: 'true'
-  TRACELOOP_BASE_URL: '{{ .Values.observability.traceLoopBaseUrl }}'
+  TRACELOOP_BASE_URL: '{{ tpl .Values.observability.traceLoopBaseUrl . }}'
   TRACELOOP_TRACE_CONTENT: 'false'
-  TEMPO_URL: '{{ .Values.observability.tempoUrl }}'
+  TEMPO_URL: '{{ tpl .Values.observability.tempoUrl . }}'
   TRACE_PROVIDER : tempo
   RCA_LATENCY_ANALYSIS_MODE: statistical
   RCA_RESOURCE_ANALYSIS_MODE: statistical
