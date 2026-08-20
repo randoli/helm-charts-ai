@@ -99,6 +99,12 @@ jobs:
           # with 403/404 — the GITHUB_TOKEN has no access to randoli/helm-charts.
           git config --local --unset-all "http.https://github.com/.extraheader" || true
           git fetch pages gh-pages
+          # cr index writes the merged index via an atomic temp-file rename
+          # inside .cr-index/ (a directory the chart-releaser action normally
+          # pre-creates), then copies it into the gh-pages worktree. Without
+          # the dir: "open .cr-index/index.yamlNNN: no such file or directory".
+          rm -rf .cr-index
+          mkdir -p .cr-index
           cr index \
             --owner "$owner" \
             --git-repo "$repo" \
