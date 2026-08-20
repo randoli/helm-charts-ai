@@ -3,5 +3,5 @@ name: sre-agent
 description: |
   A Helm chart to deploy Randoli SRE Agent
 type: application
-version: 0.3.0
+version: 0.3.0-rc.1
 appVersion: "0.2"
