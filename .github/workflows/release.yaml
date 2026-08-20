@@ -42,12 +42,18 @@ jobs:
           helm package charts/sre-agent --destination .cr-release-packages
 
       # The public chart index lives on the gh-pages branch of randoli/helm-charts
-      # (served as helm.randoli.io). chart-releaser merges this repo's releases into
-      # that shared index.yaml — it only ever appends entries, so the randoli-agent
-      # entries managed by the other repo are preserved.
-      # Auth: a GitHub App installation token (secrets HELM_CHARTS_PAGES_APP_ID /
-      # HELM_CHARTS_PAGES_APP_PRIVATE_KEY). The app must be installed on
-      # randoli/helm-charts with Contents: read/write.
+      # (served as helm.randoli.io). The index update only ever appends entries,
+      # so the randoli-agent entries managed by the other repo are preserved.
+      # Two credentials, kept separate:
+      #   - GITHUB_TOKEN creates the GitHub release + .tgz asset in THIS repo
+      #     (cr upload).
+      #   - A GitHub App installation token (secrets HELM_CHARTS_PAGES_APP_ID /
+      #     HELM_CHARTS_PAGES_APP_PRIVATE_KEY; app installed on randoli/helm-charts
+      #     with Contents: read/write) pushes the index to gh-pages (cr index).
+      # The chart-releaser ACTION is deliberately not used: it feeds a single
+      # CR_TOKEN to both operations, and its GetPushURL double-injects the token
+      # into remotes that already carry credentials ("Port number was not a
+      # decimal number" on push).
       - name: Generate GitHub App token for pages repo
         id: app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
@@ -57,28 +63,49 @@ jobs:
           owner: randoli
           repositories: helm-charts
 
-      - name: Add shared pages remote (randoli/helm-charts)
-        env:
-          PAGES_TOKEN: ${{ steps.app-token.outputs.token }}
+      - name: Install chart-releaser
         run: |
-          git remote add pages "https://x-access-token:${PAGES_TOKEN}@github.com/randoli/helm-charts.git"
-          git fetch pages gh-pages
+          curl -sSLo /tmp/cr.tar.gz https://github.com/helm/chart-releaser/releases/download/v1.7.0/chart-releaser_1.7.0_linux_amd64.tar.gz
+          tar -xzf /tmp/cr.tar.gz -C /tmp cr
+          sudo install /tmp/cr /usr/local/bin/cr
 
-      - name: Run chart-releaser
-        # Same pin as randoli/helm-charts (one commit past v1.7.0, pending a v1.7.1
-        # tag; contains the fix for helm/chart-releaser-action#171).
-        uses: helm/chart-releaser-action@3e001cb8c68933439c7e721650f20a07a1a5c61e # v1.7.0+1
-        with:
-          skip_packaging: true
-          # Only stable versions become "Latest" — pre-releases keep the badge off
-          # even when cut from main.
-          mark_as_latest: ${{ steps.validate.outputs.is_stable }}
+      - name: Create GitHub release (this repo)
         env:
-          # Releases (tags + .tgz assets) are created in THIS repo.
           CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CR_SKIP_EXISTING: true
-          # The index update is pushed to the 'pages' remote = randoli/helm-charts gh-pages.
-          CR_REMOTE: pages
+        run: |
+          owner=$(cut -d '/' -f 1 <<< "$GITHUB_REPOSITORY")
+          repo=$(cut -d '/' -f 2 <<< "$GITHUB_REPOSITORY")
+          cr upload \
+            --owner "$owner" \
+            --git-repo "$repo" \
+            --commit "$GITHUB_SHA" \
+            --skip-existing \
+            --make-release-latest=${{ steps.validate.outputs.is_stable }} \
+            --package-path .cr-release-packages
+
+      - name: Update shared chart index (randoli/helm-charts gh-pages)
+        env:
+          CR_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          owner=$(cut -d '/' -f 1 <<< "$GITHUB_REPOSITORY")
+          repo=$(cut -d '/' -f 2 <<< "$GITHUB_REPOSITORY")
+          # Clean remote URL on purpose: cr index builds the push URL by
+          # injecting CR_TOKEN itself (pkg/git GetPushURL), so the remote must
+          # not carry credentials.
+          git remote add pages https://github.com/randoli/helm-charts.git
+          # checkout persists the workflow GITHUB_TOKEN as an http extraheader,
+          # which would shadow the App token in cr's push URL (an explicit
+          # Authorization header wins over URL credentials) and fail the push
+          # with 403/404 — the GITHUB_TOKEN has no access to randoli/helm-charts.
+          git config --local --unset-all "http.https://github.com/.extraheader" || true
+          git fetch pages gh-pages
+          cr index \
+            --owner "$owner" \
+            --git-repo "$repo" \
+            --push \
+            --remote pages \
+            --pages-branch gh-pages \
+            --package-path .cr-release-packages
 
       - name: Mark GitHub Release as pre-release
         if: steps.validate.outputs.is_stable == 'false'
