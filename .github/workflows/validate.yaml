@@ -1,0 +1,30 @@
+name: Validate Charts
+
+# The release workflow only runs on tags, which is too late to catch a broken
+# chart. Lint on every PR/push that touches the chart.
+on:
+  pull_request:
+    paths:
+      - 'charts/**'
+      - 'scripts/**'
+      - '.github/workflows/validate.yaml'
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'charts/**'
+      - 'scripts/**'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Lint chart
+        run: helm lint charts/sre-agent
