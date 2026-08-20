@@ -45,11 +45,21 @@ jobs:
       # (served as helm.randoli.io). chart-releaser merges this repo's releases into
       # that shared index.yaml — it only ever appends entries, so the randoli-agent
       # entries managed by the other repo are preserved.
-      # HELM_CHARTS_PAGES_TOKEN: fine-grained PAT with Contents read/write on
-      # randoli/helm-charts only.
+      # Auth: a GitHub App installation token (secrets HELM_CHARTS_PAGES_APP_ID /
+      # HELM_CHARTS_PAGES_APP_PRIVATE_KEY). The app must be installed on
+      # randoli/helm-charts with Contents: read/write.
+      - name: Generate GitHub App token for pages repo
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.HELM_CHARTS_PAGES_APP_ID }}
+          private-key: ${{ secrets.HELM_CHARTS_PAGES_APP_PRIVATE_KEY }}
+          owner: randoli
+          repositories: helm-charts
+
       - name: Add shared pages remote (randoli/helm-charts)
         env:
-          PAGES_TOKEN: ${{ secrets.HELM_CHARTS_PAGES_TOKEN }}
+          PAGES_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           git remote add pages "https://x-access-token:${PAGES_TOKEN}@github.com/randoli/helm-charts.git"
           git fetch pages gh-pages
