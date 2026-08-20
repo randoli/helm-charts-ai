@@ -1,23 +1,123 @@
-global:
-  nodeSelector:
-  affinity:
-  tolerations:
-annotations:
-agentCallbackUrl: http://randoli-agent:8080/
-dailyBudgetUsd: '20'
-databaseSecretName: randoli-agent-db
+# ============================================================================
+# Randoli SRE Agent — configuration values
+#
+# Install modes:
+#   * As a dependency of the randoli-agent (data plane) umbrella chart: the
+#     defaults in `observability:` and `dataPlane:` already point at the
+#     umbrella's service names, so only `agent.enabledNamespaces` must be set.
+#   * Standalone: override EVERY value in `observability:` and `dataPlane:` to
+#     point at your own Prometheus / Loki / Tempo / OTel collector / Flight
+#     SQL / callback endpoints, and create the required secrets (see readme).
+# ============================================================================
+
+image:
+  # -- Image repository of the SRE agent.
+  repository: docker.io/randoli/ai-agent
+  # -- Image tag. Defaults to the chart's appVersion when empty; set this to
+  # run a different agent version (takes precedence over appVersion).
+  tag: ""
+
+# -- Extra annotations added to the agent pod template (e.g. service-mesh
+# sidecar hints). Merged with the chart's own checksum annotation.
+annotations: {}
+
+# -- Verbose debug logging for the agent pod ('True' or 'False').
 debug: 'False'
-enabledNamespaces: 'namespace1,namespace2'
-enabledWorkloads: ''
-flightSqlUrl: grpc+tcp://randoli-agent:31337
-image: docker.io/randoli/ai-agent:0.2
-logLokiUrl: http://randoli-obs-loki:3100
-llmProvider: aws
-maxIterationsMCP: '25'
-maxIterationsRCA: '25'
-otelExporterEndpoint: http://randoli-otel-collector:4317
-prometheusUrl: http://randoli-obs-prometheus:80
-region: us-east-1
-secretName: randoli-sre-agent-secret
-tempoUrl: http://randoli-obs-tempo:3200
-traceLoopBaseUrl: http://randoli-otel-collector:4318
+
+# ----------------------------------------------------------------------------
+# analysis — investigation scope, LLM budget, and reasoning limits
+# ----------------------------------------------------------------------------
+analysis:
+  # -- Namespaces the agent may analyze, as a comma-separated list.
+  # REQUIRED: replace the placeholder. Escape commas as `\,` with --set.
+  enabledNamespaces: 'namespace1,namespace2'
+
+  # -- Workloads to restrict analysis to (comma-separated).
+  # Empty means all workloads in the enabled namespaces.
+  enabledWorkloads: ''
+
+  # -- Daily budget cap for LLM (Bedrock) calls, in USD. Analysis pauses for
+  # the rest of the day once the cap is reached.
+  dailyBudgetUsd: '20'
+
+  # -- Maximum reasoning iterations of the MCP tool-calling loop per query.
+  maxIterationsMCP: '25'
+
+  # -- Maximum reasoning iterations of the root-cause-analysis investigator.
+  maxIterationsRCA: '25'
+
+# ----------------------------------------------------------------------------
+# llm — LLM backend configuration (AWS Bedrock)
+# ----------------------------------------------------------------------------
+llm:
+  # -- LLM provider. Currently only 'aws' (AWS Bedrock) is supported.
+  provider: aws
+
+  # -- AWS region used for Bedrock calls.
+  region: us-east-1
+
+  # -- Name of a pre-existing secret holding the AWS credentials
+  # (keys: AWS_ACCESS_KEY_ID, AWS_REGION, AWS_SECRET_ACCESS_KEY).
+  # This secret is NOT created by the chart — see the readme.
+  credentialsSecretName: randoli-sre-agent-secret
+
+# ----------------------------------------------------------------------------
+# observability — telemetry backends the agent queries and exports to.
+# Defaults match the service names installed by the randoli-agent data plane
+# chart. Standalone installs MUST override every value in this section.
+# ----------------------------------------------------------------------------
+observability:
+  # -- Base URL of the Prometheus server used for metrics queries.
+  prometheusUrl: http://randoli-obs-prometheus:80
+
+  # -- Base URL of the Loki gateway used for log queries.
+  lokiUrl: http://randoli-obs-loki:3100
+
+  # -- Base URL of the Tempo query endpoint used for trace queries.
+  tempoUrl: http://randoli-obs-tempo:3200
+
+  # -- OTLP gRPC endpoint of the OpenTelemetry collector the agent exports its
+  # own telemetry to.
+  otelExporterEndpoint: http://randoli-otel-collector:4317
+
+  # -- OTLP HTTP endpoint of the OpenTelemetry collector (Traceloop base URL).
+  traceLoopBaseUrl: http://randoli-otel-collector:4318
+
+# ----------------------------------------------------------------------------
+# dataPlane — Randoli data plane services the agent reports back to.
+# Defaults match the randoli-agent umbrella chart's service names.
+# Standalone installs MUST override every value in this section.
+# ----------------------------------------------------------------------------
+dataPlane:
+  # -- Callback URL of the randoli-agent service (control + result reporting).
+  agentCallbackUrl: http://randoli-agent:8080/
+
+  # -- Arrow Flight SQL endpoint of the data plane's analytics store.
+  flightSqlUrl: grpc+tcp://randoli-agent:31337
+
+  # -- Name of a pre-existing secret holding the Flight SQL credentials
+  # (keys: username, password). Created by the data plane chart, NOT by this
+  # chart.
+  databaseSecretName: randoli-agent-db
+
+# ----------------------------------------------------------------------------
+# Scheduling. Top-level keys and their `global.` counterparts are merged (both
+# applied), so an umbrella chart can set them fleet-wide via `global.*`.
+# ----------------------------------------------------------------------------
+
+# -- nodeSelector constraints for the agent pod.
+nodeSelector:
+
+# -- Affinity rules for the agent pod.
+affinity:
+
+# -- Tolerations for the agent pod.
+tolerations:
+
+global:
+  # -- Umbrella-chart-wide nodeSelector, merged with the top-level key.
+  nodeSelector:
+  # -- Umbrella-chart-wide affinity, merged with the top-level key.
+  affinity:
+  # -- Umbrella-chart-wide tolerations, merged with the top-level key.
+  tolerations:
