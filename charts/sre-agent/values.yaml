@@ -12,7 +12,7 @@
 
 image:
   # -- Image repository of the SRE agent.
-  repository: docker.io/randoli/ai-agent
+  repository: docker.io/randoli/sre-agent
   # -- Image tag. Defaults to the chart's appVersion when empty; set this to
   # run a different agent version (takes precedence over appVersion).
   tag: ""

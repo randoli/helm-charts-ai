@@ -1,7 +1,7 @@
 apiVersion: v2
 name: sre-agent
 description: |
-  A Helm chart to deploy Randoli SRE Agent
+  Randoli SRE Agent for AI driven troubleshooting and root cause analysis
 type: application
-version: 0.3.0-rc.2
-appVersion: "0.2"
+version: 1.0.0-rc.1
+appVersion: "0.2.0-rc.1"
