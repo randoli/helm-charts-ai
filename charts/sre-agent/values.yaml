@@ -8,10 +8,15 @@
 #   * Standalone: override EVERY value in `observability:` and `dataPlane:` to
 #     point at your own Prometheus / Loki / Tempo / OTel collector / Flight
 #     SQL / callback endpoints, and create the required secrets (see readme).
+#
+# Model pricing is NOT a value here: it ships as templates/models-configmap.yaml and is mounted at
+# /etc/agentic-ai/models.yaml. Every id in `models:` below must have an entry there, or that call is
+# rejected as an unsupported model.
 # ============================================================================
 
 image:
-  # -- Image repository of the SRE agent.
+  # -- Image repository of the SRE agent. This is the PUBLIC repo the webhook-driven pipeline
+  # publishes to; the old private randoli/ai-agent is no longer built.
   repository: docker.io/randoli/sre-agent
   # -- Image tag. Defaults to the chart's appVersion when empty; set this to
   # run a different agent version (takes precedence over appVersion).
@@ -45,6 +50,32 @@ analysis:
 
   # -- Maximum reasoning iterations of the root-cause-analysis investigator.
   maxIterationsRCA: '25'
+
+  # -- Maximum reasoning iterations of the runbook executor. Higher than RCA because a runbook
+  # both investigates AND acts.
+  maxIterationsRunbook: '35'
+
+  # -- How often (seconds) to reconcile the local spend total against the database. The budget
+  # check itself is local, so this only folds in what OTHER replicas have spent.
+  budgetReconcileEverySeconds: '60'
+
+  # -- Seconds to wait for that reconcile read before giving up. Failing to read fails CLOSED
+  # (LLM calls are suppressed), so keep this well under any client timeout.
+  budgetReadTimeoutSeconds: '5'
+
+# ----------------------------------------------------------------------------
+# sreChat — limits for the interactive chat agent. It is a hybrid (quick lookups,
+# bounded actions, and deep dives), so its caps sit between RCA and runbook.
+# ----------------------------------------------------------------------------
+sreChat:
+  # -- Max tool-loop iterations per turn.
+  maxIterations: '30'
+  # -- Max parallel tool calls the agent may request in one iteration.
+  maxToolsPerStep: '5'
+  # -- How many times it may ask the user a clarifying question before it must answer regardless.
+  maxClarificationRounds: '3'
+  # -- Cross-conversation memory: how many past (query, summary) pairs to load at intake.
+  historyCount: '10'
 
 # ----------------------------------------------------------------------------
 # llm — LLM backend configuration (AWS Bedrock)
@@ -83,6 +114,10 @@ observability:
   # -- OTLP HTTP endpoint of the OpenTelemetry collector (Traceloop base URL).
   traceLoopBaseUrl: http://randoli-otel-collector:4318
 
+  # -- Set 'true' to stop the agent exporting its own traces and metrics. Only affects the agent's
+  # self-telemetry; it still QUERIES Prometheus / Loki / Tempo for investigations either way.
+  otelDisabled: 'false'
+
 # ----------------------------------------------------------------------------
 # dataPlane — Randoli data plane services the agent reports back to.
 # Defaults match the randoli-agent umbrella chart's service names.
@@ -91,6 +126,10 @@ observability:
 dataPlane:
   # -- Callback URL of the randoli-agent service (control + result reporting).
   agentCallbackUrl: http://randoli-agent:8080/
+
+  # -- Callback URL for scheduled (periodic) runbook results. Same receiver as agentCallbackUrl by
+  # default; point it elsewhere only if periodic runs should report somewhere different.
+  periodicRunbookCallbackUrl: http://randoli-agent:8080/
 
   # -- Arrow Flight SQL endpoint of the data plane's analytics store.
   flightSqlUrl: grpc+tcp://randoli-agent:31337
@@ -121,3 +160,54 @@ global:
   affinity:
   # -- Umbrella-chart-wide tolerations, merged with the top-level key.
   tolerations:
+
+
+models:
+  # Root cause analysis
+  RCA_COMPACTION_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  RCA_INVESTIGATOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RCA_ITERATION_FINDING_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  RCA_POST_PROCESSOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RCA_TOOL_OUTPUT_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  RCA_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+
+  # Runbook execution
+  RUNBOOK_ATLASSIAN_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RUNBOOK_COMPACTION_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  RUNBOOK_EXECUTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RUNBOOK_GITHUB_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RUNBOOK_ITERATION_FINDING_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  RUNBOOK_POST_PROCESSOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RUNBOOK_TOOL_OUTPUT_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  RUNBOOK_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+
+  # Periodic (scheduled) runbook
+  PERIODIC_RUNBOOK_COMPACTION_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  PERIODIC_RUNBOOK_EXECUTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  PERIODIC_RUNBOOK_GITHUB_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  PERIODIC_RUNBOOK_ITERATION_FINDING_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  PERIODIC_RUNBOOK_POST_PROCESSOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  PERIODIC_RUNBOOK_TICKETING_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  PERIODIC_RUNBOOK_TOOL_OUTPUT_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  PERIODIC_RUNBOOK_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+
+  # Interactive SRE chat
+  SRE_CHAT_ANALYSIS_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  SRE_CHAT_ATLASSIAN_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  SRE_CHAT_COMPACTION_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  SRE_CHAT_CONVERSATION_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  SRE_CHAT_EXECUTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  SRE_CHAT_GITHUB_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  SRE_CHAT_ITERATION_FINDING_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  SRE_CHAT_POST_PROCESSOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  SRE_CHAT_RESOLVER_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  SRE_CHAT_TOOL_OUTPUT_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  SRE_CHAT_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+
+  # MCP tool-calling agent
+  MCP_COMPACTION_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  MCP_ITERATION_FINDING_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  MCP_TOOL_CALLING_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  MCP_TOOL_OUTPUT_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  MCP_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+

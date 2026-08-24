@@ -1,62 +1,68 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: mcpconfigurations.mcp.randoli.ai
+  name: mcpconfiguration.mcp.ai.randoli.io
 spec:
-  group: mcp.randoli.ai
+  group: mcp.ai.randoli.io
   scope: Cluster
   names:
     kind: MCPConfiguration
-    plural: mcpconfigurations
+    plural: mcpconfiguration
     singular: mcpconfiguration
     shortNames: [mcpconf]
   versions:
-    - name: v1alpha1
+    - name: v1beta1
       served: true
       storage: true
       schema:
         openAPIV3Schema:
           type: object
-          description: Configuration for MCP servers available to agents.
+          # One CR = ONE MCP server, for one or more agents. WHICH agents get this server is set by
+          # annotations on the CR (not in spec):
+          #   metadata:
+          #     annotations:
+          #       mcp.ai.randoli.io/rca:      "enabled"
+          #       mcp.ai.randoli.io/runbook:  "enabled"
+          #       mcp.ai.randoli.io/sre-chat: "enabled"
+          # A CR carrying several of these enables the same server (same prompt) for several agents.
+          # When a server needs a DIFFERENT prompt per agent (e.g. a read-only Kubernetes prompt for
+          # RCA vs a mutation-aware one for runbook), create TWO CRs of the same spec.type, each
+          # annotated for its agent(s) and carrying its own prompt. The registry, when it builds the
+          # toolset for one agent, scrapes every CR annotated for that agent and keys them by spec.type.
           properties:
             spec:
               type: object
               properties:
-                mcpServers:
+                type:
+                  type: string
+                category:
+                  type: string
+                  # Optional role marker. Set to "ticketing" on the single ticketing MCP server
+                  # (Jira/ServiceNow/ClickUp/...) so the /ticketing endpoint can find it regardless of
+                  # type. Omit on everything else.
+                transport:
+                  type: string
+                  enum: [streamable_http, sse, stdio]
+                url:
+                  type: string
+                  format: uri
+                prompt:
+                  type: string
+                headers:
                   type: object
-                  description: Map of MCP server configs keyed by logical name 
                   additionalProperties:
-                    type: object
-                    description: MCP server configuration.
-                    properties:
-                      transport:
-                        type: string
-                        description: Transport mechanism used by the MCP server.
-                        enum: [streamable_http, sse, stdio]
-                      url:
-                        type: string
-                        description: Base URL (or endpoint) of the MCP server.
-                        format: uri
-                      prompt:
-                        type: string
-                        description: Agent system prompt for this MCP server.
-                      headers:
-                        type: object
-                        description: Optional extra HTTP headers 
-                        additionalProperties:
-                          type: string
-                    required: [transport, url, prompt]
-                    x-kubernetes-preserve-unknown-fields: true
-              required: [mcpServers]
+                    type: string
+              required: [type, transport, url, prompt]
           required: [spec]
       subresources:
         status: {}
       additionalPrinterColumns:
-        - name: Github
+        - name: Type
           type: string
-          jsonPath: .spec.mcpServers.github.transport
-          description: Transport for the github MCP server
-        - name: Atlassian
+          jsonPath: .spec.type
+        - name: Category
           type: string
-          jsonPath: .spec.mcpServers.atlassian.transport
-          description: Transport for the atlassian MCP server
+          jsonPath: .spec.category
+        - name: Transport
+          type: string
+          jsonPath: .spec.transport
