@@ -3,5 +3,5 @@ name: sre-agent
 description: |
   Randoli SRE Agent for AI driven troubleshooting and root cause analysis
 type: application
-version: 1.0.0-rc.1
+version: 1.0.0-rc.2
 appVersion: "0.2.0-rc.1"
