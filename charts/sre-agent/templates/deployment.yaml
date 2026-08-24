@@ -45,12 +45,23 @@ spec:
                 name: randoli-sre-agent-config
             - secretRef:
                 name: {{ $.Values.llm.credentialsSecretName }}
+          # Model pricing. config.py reads /etc/agentic-ai/models.yaml by default and builds the set
+          # of usable models from it; without this mount the pod starts but every LLM call fails with
+          # "model_id ... is not a supported model for provider".
+          volumeMounts:
+            - name: model-pricing
+              mountPath: /etc/agentic-ai
+              readOnly: true
           resources:
             limits:
               memory: 1Gi
             requests:
               cpu: 10m
               memory: 382Mi
+      volumes:
+        - name: model-pricing
+          configMap:
+            name: randoli-sre-agent-models
       {{- if or .Values.tolerations .Values.global.tolerations }}
       tolerations:
         {{- with .Values.tolerations }}

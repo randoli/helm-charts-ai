@@ -1,0 +1,121 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: randoli-sre-agent-models
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: randoli-sre-agent
+data:
+  models.yaml: |
+    # Combined model pricing for ALL providers. Only the active LLM_PROVIDER's entries are
+    # built into LLMs (config.py scopes supported_model_ids to it); the rest are ignored.
+    models:
+      - provider: bedrock
+        id: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+        input_cost:       0.0000033
+        output_cost:      0.0000165
+        cache_read_cost:  0.00000033
+        cache_write_cost: 0.000004125
+      - provider: bedrock
+        id: qwen.qwen3-coder-30b-a3b-v1:0
+        input_cost:       0.00000015
+        output_cost:      0.0000006
+        cache_read_cost:  0
+        cache_write_cost: 0
+
+      - provider: vertex
+        id: claude-sonnet-4-5@20250929
+        input_cost:       0.000003
+        output_cost:      0.000015
+        cache_read_cost:  0.0000003
+        cache_write_cost: 0.00000375
+      - provider: vertex
+        id: gemini-3-pro
+        input_cost:       0.000002
+        output_cost:      0.000012
+        cache_read_cost:  0
+        cache_write_cost: 0
+      - provider: vertex
+        id: gemini-3.1-flash-lite
+        input_cost:       0.00000025
+        output_cost:      0.0000015
+        cache_read_cost:  0
+        cache_write_cost: 0
+
+      - provider: anthropic
+        id: claude-sonnet-4-5-20250929
+        input_cost:       0.000003
+        output_cost:      0.000015
+        cache_read_cost:  0.0000003
+        cache_write_cost: 0.00000375
+      - provider: anthropic
+        id: claude-haiku-4-5-20251001
+        input_cost:       0.000001
+        output_cost:      0.000005
+        cache_read_cost:  0.0000001
+        cache_write_cost: 0.00000125
+
+      - provider: azure_openai
+        id: gpt-5.4
+        input_cost:       0.0000025
+        output_cost:      0.000015
+        cache_read_cost:  0
+        cache_write_cost: 0
+      - provider: azure_openai
+        id: gpt-5.4-mini
+        input_cost:       0.00000075
+        output_cost:      0.0000045
+        cache_read_cost:  0
+        cache_write_cost: 0
+
+      - provider: azure_anthropic
+        id: claude-sonnet-4-5
+        input_cost:       0.000003
+        output_cost:      0.000015
+        cache_read_cost:  0.0000003
+        cache_write_cost: 0.00000375
+      - provider: azure_anthropic
+        id: claude-haiku-4-5
+        input_cost:       0.000001
+        output_cost:      0.000005
+        cache_read_cost:  0.0000001
+        cache_write_cost: 0.00000125
+
+      - provider: azure_meta
+        id: Llama-4-Maverick-17B-128E-Instruct-FP8
+        input_cost:       0.00000035
+        output_cost:      0.00000085
+        cache_read_cost:  0
+        cache_write_cost: 0
+      - provider: azure_meta
+        id: Llama-3.3-70B-Instruct
+        input_cost:       0.00000059
+        output_cost:      0.00000079
+        cache_read_cost:  0
+        cache_write_cost: 0
+
+      - provider: azure_mistral
+        id: Mistral-Large-2411
+        input_cost:       0.000002
+        output_cost:      0.000006
+        cache_read_cost:  0
+        cache_write_cost: 0
+      - provider: azure_mistral
+        id: Mistral-small
+        input_cost:       0.0000001
+        output_cost:      0.0000003
+        cache_read_cost:  0
+        cache_write_cost: 0
+
+      - provider: azure_deepseek
+        id: DeepSeek-V3.1
+        input_cost:       0.00000056
+        output_cost:      0.00000168
+        cache_read_cost:  0
+        cache_write_cost: 0
+      - provider: azure_deepseek
+        id: DeepSeek-V3-0324
+        input_cost:       0.00000114
+        output_cost:      0.00000456
+        cache_read_cost:  0
+        cache_write_cost: 0
