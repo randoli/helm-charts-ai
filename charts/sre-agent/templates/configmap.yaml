@@ -4,7 +4,8 @@ metadata:
   name: randoli-sre-agent-config
   namespace: {{ .Release.Namespace }}
   labels:
-    app: randoli-sre-agent
+    {{- include "selectorLabels" . | nindent 4 }}
+    {{- include "labels" . | nindent 4 }}
 data:
   AGENT_CALLBACK_URL: '{{ .Values.dataPlane.agentCallbackUrl }}'
   DAILY_USAGE_BUDGET_IN_USD: '{{ .Values.analysis.dailyBudgetUsd }}'
