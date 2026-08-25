@@ -11,6 +11,14 @@ rules:
       - watch
       - get
     apiGroups:
+      - 'mcp.ai.randoli.io'
+    resources:
+      - mcpconfiguration
+  - verbs:
+      - list
+      - watch
+      - get
+    apiGroups:
       - 'mcp.randoli.ai'
     resources:
       - mcpconfigurations
