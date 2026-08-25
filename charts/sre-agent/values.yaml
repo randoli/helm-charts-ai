@@ -26,8 +26,8 @@ image:
 # sidecar hints). Merged with the chart's own checksum annotation.
 annotations: {}
 
-# -- Verbose debug logging for the agent pod ('True' or 'False').
-debug: 'False'
+# python levels (DEBUG / INFO / WARNING / ERROR).
+logLevel: 'INFO'
 
 # ----------------------------------------------------------------------------
 # analysis — investigation scope, LLM budget, and reasoning limits
@@ -124,12 +124,7 @@ observability:
 # Standalone installs MUST override every value in this section.
 # ----------------------------------------------------------------------------
 dataPlane:
-  # -- Callback URL of the randoli-agent service (control + result reporting).
   agentCallbackUrl: http://randoli-agent:8080/
-
-  # -- Callback URL for scheduled (periodic) runbook results. Same receiver as agentCallbackUrl by
-  # default; point it elsewhere only if periodic runs should report somewhere different.
-  periodicRunbookCallbackUrl: http://randoli-agent:8080/
 
   # -- Arrow Flight SQL endpoint of the data plane's analytics store.
   flightSqlUrl: grpc+tcp://randoli-agent:31337
@@ -192,7 +187,6 @@ models:
   PERIODIC_RUNBOOK_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
 
   # Interactive SRE chat
-  SRE_CHAT_ANALYSIS_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   SRE_CHAT_ATLASSIAN_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   SRE_CHAT_COMPACTION_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
   SRE_CHAT_CONVERSATION_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
@@ -200,7 +194,6 @@ models:
   SRE_CHAT_GITHUB_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   SRE_CHAT_ITERATION_FINDING_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
   SRE_CHAT_POST_PROCESSOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  SRE_CHAT_RESOLVER_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   SRE_CHAT_TOOL_OUTPUT_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
   SRE_CHAT_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
 

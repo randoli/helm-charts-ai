@@ -7,10 +7,10 @@ metadata:
     {{- include "selectorLabels" . | nindent 4 }}
     {{- include "labels" . | nindent 4 }}
 data:
-  AGENT_CALLBACK_URL: '{{ .Values.dataPlane.agentCallbackUrl }}'
+  AGENT_CALLBACK_URL: '{{ tpl (.Values.dataPlane.agentCallbackUrl | toString) . }}'
   DAILY_USAGE_BUDGET_IN_USD: '{{ .Values.analysis.dailyBudgetUsd }}'
-  DEBUG: '{{ .Values.debug }}'
   ENABLED_NAMESPACES: '{{ .Values.analysis.enabledNamespaces }}'
+  LOG_LEVEL: '{{ .Values.logLevel }}'
   ENABLED_WORKLOADS: '{{ .Values.analysis.enabledWorkloads }}'
   FLIGHTSQL_URL: '{{ tpl .Values.dataPlane.flightSqlUrl . }}'
   LLM_PROVIDER: '{{ .Values.llm.provider }}'
@@ -26,17 +26,14 @@ data:
   OTEL_SPAN_EVENT_COUNT_LIMIT : '256'
   PROMETHEUS_URL: '{{ tpl .Values.observability.prometheusUrl . }}'
   RCA_INVESTIGATOR_MAX_ITERATIONS : '{{ .Values.analysis.maxIterationsRCA }}'
-  REGION: '{{ .Values.llm.region }}'
+  # config.py reads AWS_REGION, not REGION. The secret can also carry AWS_REGION;
+  # whichever the secret sets wins, since envFrom applies the secret after this map.
+  AWS_REGION: '{{ .Values.llm.region }}'
   RUNNING_IN_KUBERNETES: 'true'
   TRACELOOP_BASE_URL: '{{ tpl .Values.observability.traceLoopBaseUrl . }}'
   TRACELOOP_TRACE_CONTENT: 'false'
   TEMPO_URL: '{{ tpl .Values.observability.tempoUrl . }}'
   TRACE_PROVIDER : tempo
-  RCA_LATENCY_ANALYSIS_MODE: statistical
-  RCA_RESOURCE_ANALYSIS_MODE: statistical
-  RCA_ERROR_ANALYSIS_MODE: statistical
-
-  PERIODIC_RUNBOOK_CALLBACK_URL: '{{ .Values.dataPlane.periodicRunbookCallbackUrl }}'
 
   BUDGET_RECONCILE_EVERY_S: '{{ .Values.analysis.budgetReconcileEverySeconds }}'
   BUDGET_READ_TIMEOUT_S: '{{ .Values.analysis.budgetReadTimeoutSeconds }}'
