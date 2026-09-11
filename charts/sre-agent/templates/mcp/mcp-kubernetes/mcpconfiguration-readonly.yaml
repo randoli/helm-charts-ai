@@ -2,25 +2,23 @@
 apiVersion: mcp.ai.randoli.io/v1beta1
 kind: MCPConfiguration
 metadata:
-  name: randoli-mcp-kubernetes
-  annotations:
-    mcp.ai.randoli.io/runbook:          "enabled"
-    mcp.ai.randoli.io/periodic-runbook: "enabled"
-    mcp.ai.randoli.io/sre-chat:         "enabled"
-    {{- with .Values.global.annotations }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
-    {{- with .Values.mcpServers.kubernetes.annotations }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
+  name: randoli-mcp-kubernetes-readonly
   labels:
-    {{- include "mcpServerLabels" (dict "context" . "component" "randoli-mcp-server-kubernetes") | nindent 4 }}
+    {{- include "mcpServerLabels" (dict "context" . "component" "randoli-mcp-kubernetes-readonly") | nindent 4 }}
     {{- with .Values.global.labels }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
     {{- with .Values.mcpServers.kubernetes.labels }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
+  annotations:
+    {{- with .Values.global.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- with .Values.mcpServers.kubernetes.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    mcp.ai.randoli.io/rca: "enabled"
   namespace: {{ .Release.Namespace }}
 spec:
   type: kubernetes
@@ -32,6 +30,7 @@ spec:
     - pods_get
     - pods_log
     - pods_top
+    - pods_exec
     - resources_get
     - resources_list
     - events_list
@@ -41,30 +40,22 @@ spec:
     - nodes_stats_summary
     - nodes_log
     - tekton_pipelinerun_logs
-    - pods_delete
-    - resources_scale
-    - resources_create_or_update
   prompt: |
     Kubernetes read tools (toolsets config, core, kcp, kiali, kubevirt, tekton): events_list, pods_list/get/log/top,
     nodes_log/top/stats_summary, resources_list/get, namespaces_list, the kiali_* read tools, tekton_*_logs  inspect
     live cluster state.
 
-    How to work: resolve identifiers before acting  list/get to confirm a pod or resource exists and its exact name
-    + namespace before pulling logs, status, or doing any mutation. No cross-resource joins (pods-by-service,
-    pvc-by-deployment)  chain resources_list + resources_get yourself. For an incident, start from events_list and
-    pod status/restarts, then logs, then the owning resource.
-
-    Mutation scope (writes are tightly bounded):
-    - ALLOWED: scale up/down (resources_scale) and rollout-restart / pod bounce of a workload. Before any mutation
-      name the exact target (kind, name, namespace) and the change, then call. Mutating without naming the target = PROCESS VIOLATION.
-    - FORBIDDEN even though the tools exist: pods_delete, pods_exec, pods_run, resources_delete,
-      resources_create_or_update, kiali_manage_istio_config, vm_*, tekton_*_start, cordon / drain. Calling one = HARD RULE VIOLATION.
+    What to look for: start from events_list (Warning, OOMKilled, FailedScheduling, BackOff) and pod container
+    status (restartCount, lastState, exit code  137 = OOM, 1 = crash), then pod logs around the incident time, then
+    the owning resource (image, env, probes, resource limits). Trace symptom -> cause: CrashLoop -> WHY (bad config,
+    missing dependency, OOM); OOMKilled -> heap vs limit; a recent image/config change -> read the resource spec.
+    Resolve identifiers first (list/get to confirm exact name + namespace). No cross-resource joins  chain
+    resources_list + resources_get yourself.
 
     Reading Secrets  the values are hidden from you:
-    - You CAN read Secrets (list / get / describe), but every Secret VALUE is stripped and replaced with a
+    - You CAN read Secrets (list / get / describe). But every Secret VALUE is stripped and replaced with a
       placeholder BEFORE the output reaches you. This is by design, NOT a failure and NOT an empty field. You
-      can confirm a Secret EXISTS and see its keys, type, and metadata; you can NEVER see a value, and you can
-      NEVER create, patch, or delete a Secret (that falls under the FORBIDDEN mutations above).
+      can confirm a Secret EXISTS and see its keys, type, and metadata; you can NEVER see a value.
     - A hidden value is NOT a missing or empty value. NEVER report a credential as absent, empty, or
       misconfigured because you could not see its value. You may answer "is this configured" (does the Secret
       and the key exist); you may NEVER state what the value is or claim it is wrong.
@@ -76,9 +67,11 @@ spec:
     - An empty read is therefore NOT proof of absence on its own. If a resource you expected is missing from
       the output, say you could NOT confirm it  and when it matters, verify access with a self-subject access
       review  rather than asserting it does not exist. Mistaking "I could not see it" for "it is not there",
-      then acting (a bounce / scale) or building a conclusion on that phantom absence, is a CRITICAL FAILURE.
+      then building a root cause on that phantom absence, is a CRITICAL INVESTIGATION FAILURE.
 
     Hard rules:
+    - READ-ONLY  zero mutations: never delete, create, apply, patch, scale, exec, run, restart, or touch VMs /
+      Tekton starts / Kiali config. Having the tool is NOT permission. Calling a mutating tool = CRITICAL PROCESS VIOLATION.
     - Never invent pod / node / container / namespace names, image refs, or resource kinds. An empty result is a
       valid answer, but read the RBAC note above before treating it as proof a resource is absent.
     - Preserve verbatim: pod / container / namespace / node names, UIDs, resourceVersion, full image refs (repo:tag@sha256:...), exit codes, restart counts.

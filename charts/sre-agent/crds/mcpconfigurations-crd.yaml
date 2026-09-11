@@ -17,18 +17,6 @@ spec:
       schema:
         openAPIV3Schema:
           type: object
-          # One CR = ONE MCP server, for one or more agents. WHICH agents get this server is set by
-          # annotations on the CR (not in spec):
-          #   metadata:
-          #     annotations:
-          #       mcp.ai.randoli.io/rca:      "enabled"
-          #       mcp.ai.randoli.io/runbook:  "enabled"
-          #       mcp.ai.randoli.io/sre-chat: "enabled"
-          # A CR carrying several of these enables the same server (same prompt) for several agents.
-          # When a server needs a DIFFERENT prompt per agent (e.g. a read-only Kubernetes prompt for
-          # RCA vs a mutation-aware one for runbook), create TWO CRs of the same spec.type, each
-          # annotated for its agent(s) and carrying its own prompt. The registry, when it builds the
-          # toolset for one agent, scrapes every CR annotated for that agent and keys them by spec.type.
           properties:
             spec:
               type: object
@@ -37,9 +25,6 @@ spec:
                   type: string
                 category:
                   type: string
-                  # Optional role marker. Set to "ticketing" on the single ticketing MCP server
-                  # (Jira/ServiceNow/ClickUp/...) so the /ticketing endpoint can find it regardless of
-                  # type. Omit on everything else.
                 transport:
                   type: string
                   enum: [streamable_http, sse, stdio]
@@ -51,6 +36,10 @@ spec:
                 headers:
                   type: object
                   additionalProperties:
+                    type: string
+                allowedTools:
+                  type: array
+                  items:
                     type: string
               required: [type, transport, url, prompt]
           required: [spec]
