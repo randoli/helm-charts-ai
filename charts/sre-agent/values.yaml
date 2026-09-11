@@ -140,9 +140,6 @@ dataPlane:
 # that registers it with the agent (the agent watches the CRD in crds/).
 # All servers install by default; turn any off with its `enabled` flag.
 #
-# When installed via the randoli-agent umbrella these values live under
-# `sreAgent.mcpServers.*` and the tempo/loki endpoints are injected through
-# `observability.*Url`. Standalone installs get the defaults below.
 # ----------------------------------------------------------------------------
 mcpServers:
   # Kubernetes MCP server (Deployment + Service + RBAC + CR).
@@ -157,7 +154,7 @@ mcpServers:
     toolsets: "config,core,kcp,kiali,kubevirt,tekton"
     resources:
       requests:
-        cpu: 10m
+        cpu: 50m
         memory: 258Mi
       limits:
         memory: 1Gi
@@ -192,7 +189,33 @@ mcpServers:
     extraArgs: []
     resources:
       requests:
-        cpu: 10m
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
+    # Scheduling — merged with the global.* counterparts (both applied).
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+    # -- Extra labels/annotations merged over the standard set (global.* applied first).
+    labels: {}
+    annotations: {}
+    podAnnotations: {}
+
+  # Prometheus MCP server (Deployment + Service + CR; tjhop/prometheus-mcp-server,
+  # read-only PromQL over streamable HTTP). Queries the Prometheus at
+  # `observability.prometheusUrl`; installs only when that URL is set.
+  prometheus:
+    enabled: true
+    image: ghcr.io/tjhop/prometheus-mcp-server:v0.18.0
+    imagePullPolicy: IfNotPresent
+    port: 8080
+    # -- Extra container env vars / CLI args appended to the built-in set.
+    extraEnv: []
+    extraArgs: []
+    resources:
+      requests:
+        cpu: 50m
         memory: 64Mi
       limits:
         memory: 256Mi
