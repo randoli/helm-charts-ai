@@ -36,3 +36,19 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 helm.sh/chart: {{ include "chartName" . }}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Labels for MCP server resources — same shape as "labels" but with the MCP
+server's own component name. Expects a dict {context: ., component: "<name>"}.
+Usage: include "mcpServerLabels" (dict "context" . "component" "randoli-mcp-server-kubernetes")
+*/}}
+{{- define "mcpServerLabels" -}}
+app.kubernetes.io/name: {{ include "sre-agent.name" .context }}
+app.kubernetes.io/instance: {{ .context.Release.Name }}
+app.kubernetes.io/component: {{ .component }}
+app.kubernetes.io/version: {{ .context.Chart.AppVersion | quote }}
+{{- if eq (default "helm" .context.Values.creator) "helm" }}
+app.kubernetes.io/managed-by: {{ .context.Release.Service }}
+helm.sh/chart: {{ include "chartName" .context }}
+{{- end -}}
+{{- end -}}

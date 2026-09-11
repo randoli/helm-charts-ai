@@ -135,6 +135,84 @@ dataPlane:
   databaseSecretName: randoli-agent-db
 
 # ----------------------------------------------------------------------------
+# mcpServers — MCP servers wired into the agent. Each server installs its
+# in-cluster Deployment/Service (where needed) plus the MCPConfiguration CR
+# that registers it with the agent (the agent watches the CRD in crds/).
+# All servers install by default; turn any off with its `enabled` flag.
+#
+# When installed via the randoli-agent umbrella these values live under
+# `sreAgent.mcpServers.*` and the tempo/loki endpoints are injected through
+# `observability.*Url`. Standalone installs get the defaults below.
+# ----------------------------------------------------------------------------
+mcpServers:
+  # Kubernetes MCP server (Deployment + Service + RBAC + CR).
+  # Automatically disabled on OpenShift (global.openshift.enabled=true).
+  kubernetes:
+    enabled: true
+    # -- Image as registry/repo:tag (optionally repo@sha256:digest).
+    image: ghcr.io/containers/kubernetes-mcp-server:v0.0.66
+    imagePullPolicy: IfNotPresent
+    port: 8080
+    # -- Toolsets exposed by the server (see containers/kubernetes-mcp-server docs).
+    toolsets: "config,core,kcp,kiali,kubevirt,tekton"
+    resources:
+      requests:
+        cpu: 10m
+        memory: 258Mi
+      limits:
+        memory: 1Gi
+    # Scheduling — merged with the global.* counterparts (both applied).
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+    # -- Extra labels/annotations merged over the standard set (global.* applied first).
+    labels: {}
+    annotations: {}
+    podAnnotations: {}
+
+  # Loki MCP server (Deployment + Service + CR; Randoli-repackaged
+  # grafana/mcp-grafana locked down to Loki, read-only). Talks to a
+  # Grafana-compatible endpoint for Loki queries; all connection config is
+  # optional — leave unset when running fully in-cluster.
+  loki:
+    enabled: true
+    image: docker.io/randoli/loki-mcp:v0.6.0
+    imagePullPolicy: IfNotPresent
+    port: 8000
+    grafana:
+      # -- Grafana base URL. When empty, no GRAFANA_URL env is rendered.
+      url: ""
+      # -- Name of a pre-created secret holding a Grafana service-account
+      # token. When empty, no token env is rendered.
+      secretName: ""
+      # -- Key within existingSecret holding the token.
+      tokenKey: GRAFANA_SERVICE_ACCOUNT_TOKEN
+    # -- Extra container env vars / CLI args appended to the built-in set.
+    extraEnv: []
+    extraArgs: []
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
+    # Scheduling — merged with the global.* counterparts (both applied).
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+    # -- Extra labels/annotations merged over the standard set (global.* applied first).
+    labels: {}
+    annotations: {}
+    podAnnotations: {}
+
+  # Tempo MCP — no server Deployment; the CR points at the Tempo
+  # query-frontend's built-in MCP endpoint (<observability.tempoUrl>/api/mcp).
+  # The endpoint itself is enabled by the chart that installs Tempo (in the
+  # randoli-agent umbrella: tempo/tempoDistributed mcp_server keys).
+  tempo:
+    enabled: true
+
+# ----------------------------------------------------------------------------
 # Scheduling. Top-level keys and their `global.` counterparts are merged (both
 # applied), so an umbrella chart can set them fleet-wide via `global.*`.
 # ----------------------------------------------------------------------------
@@ -155,6 +233,14 @@ global:
   affinity:
   # -- Umbrella-chart-wide tolerations, merged with the top-level key.
   tolerations:
+  # -- Umbrella-chart-wide imagePullSecrets applied to the MCP server pods.
+  imagePullSecrets: []
+  # -- Umbrella-chart-wide extra labels/annotations, merged under the per-server ones.
+  labels: {}
+  annotations: {}
+  # -- Set by the umbrella chart on OpenShift; disables the Kubernetes MCP server.
+  openshift:
+    enabled: false
 
 
 models:
@@ -203,4 +289,4 @@ models:
   MCP_TOOL_CALLING_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   MCP_TOOL_OUTPUT_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
   MCP_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-
+  

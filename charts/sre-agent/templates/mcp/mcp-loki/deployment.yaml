@@ -1,0 +1,138 @@
+{{- /*
+Loki MCP server (Randoli-repackaged grafana/mcp-grafana locked down to Loki,
+read-only) exposing Loki query tools to the SRE agent over streamable HTTP.
+*/ -}}
+{{- if .Values.mcpServers.loki.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: randoli-mcp-server-loki
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: randoli-mcp-server-loki
+    {{- include "mcpServerLabels" (dict "context" . "component" "randoli-mcp-server-loki") | nindent 4 }}
+    {{- with .Values.global.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- with .Values.mcpServers.loki.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- if or .Values.global.annotations .Values.mcpServers.loki.annotations }}
+  annotations:
+    {{- with .Values.global.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- with .Values.mcpServers.loki.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: randoli-mcp-server-loki
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: randoli-mcp-server-loki
+        {{- include "mcpServerLabels" (dict "context" . "component" "randoli-mcp-server-loki") | nindent 8 }}
+        {{- with .Values.global.labels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.mcpServers.loki.labels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.mcpServers.loki.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: mcp-server
+        image: {{ .Values.mcpServers.loki.image }}
+        imagePullPolicy: {{ .Values.mcpServers.loki.imagePullPolicy }}
+        args:
+        - -t
+        - streamable-http
+        - --allowed-hosts=randoli-mcp-server-loki.{{ .Release.Namespace }}:{{ .Values.mcpServers.loki.port }},randoli-mcp-server-loki.{{ .Release.Namespace }}.svc:{{ .Values.mcpServers.loki.port }},randoli-mcp-server-loki:{{ .Values.mcpServers.loki.port }}
+        - --disable-prometheus
+        - --disable-pyroscope
+        - --disable-oncall
+        - --disable-dashboard
+        - --disable-alerting
+        - --disable-search
+        - --disable-admin
+        - --disable-rendering
+        - --disable-navigation
+        - --disable-cloudwatch
+        - --disable-clickhouse
+        - --disable-athena
+        - --disable-elasticsearch
+        - --disable-graphite
+        - --disable-snowflake
+        - --disable-influxdb
+        - --disable-runpanelquery
+        - --disable-write
+        {{- with .Values.mcpServers.loki.extraArgs }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        env:
+        {{- if .Values.mcpServers.loki.grafana.url }}
+        - name: GRAFANA_URL
+          value: {{ .Values.mcpServers.loki.grafana.url | quote }}
+        {{- end }}
+        {{- if .Values.mcpServers.loki.grafana.secretName }}
+        - name: GRAFANA_SERVICE_ACCOUNT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.mcpServers.loki.grafana.secretName }}
+              key: {{ .Values.mcpServers.loki.grafana.tokenKey }}
+        {{- end }}
+        {{- with .Values.mcpServers.loki.extraEnv }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.mcpServers.loki.port }}
+          protocol: TCP
+        {{- with .Values.mcpServers.loki.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      {{- if or .Values.mcpServers.loki.tolerations .Values.global.tolerations }}
+      tolerations:
+        {{- with .Values.mcpServers.loki.tolerations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.global.tolerations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      {{- if or .Values.mcpServers.loki.nodeSelector .Values.global.nodeSelector }}
+      nodeSelector:
+        {{- with .Values.mcpServers.loki.nodeSelector }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.global.nodeSelector }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      {{- if or .Values.mcpServers.loki.affinity .Values.global.affinity }}
+      affinity:
+        {{- with .Values.mcpServers.loki.affinity }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.global.affinity }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+{{- end }}
