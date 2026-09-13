@@ -55,13 +55,14 @@ analysis:
   # both investigates AND acts.
   maxIterationsRunbook: '35'
 
-  # -- How often (seconds) to reconcile the local spend total against the database. The budget
-  # check itself is local, so this only folds in what OTHER replicas have spent.
-  budgetReconcileEverySeconds: '60'
+  # -- What one LLM call claims against the daily budget before it runs, in USD. The claim is
+  # rewritten to the real cost once the call returns. Raising it refuses calls sooner near the
+  # cap; lowering it lets a burst overshoot by more.
+  budgetCallEstimateUsd: '1'
 
-  # -- Seconds to wait for that reconcile read before giving up. Failing to read fails CLOSED
-  # (LLM calls are suppressed), so keep this well under any client timeout.
-  budgetReadTimeoutSeconds: '5'
+  # -- How many tool calls run at once per iteration. Bounds concurrency only: every call the
+  # model asks for still runs, a wide fan-out just queues.
+  toolConcurrency: '8'
 
 # ----------------------------------------------------------------------------
 # sreChat — limits for the interactive chat agent. It is a hybrid (quick lookups,
@@ -70,12 +71,12 @@ analysis:
 sreChat:
   # -- Max tool-loop iterations per turn.
   maxIterations: '30'
-  # -- Max parallel tool calls the agent may request in one iteration.
-  maxToolsPerStep: '5'
   # -- How many times it may ask the user a clarifying question before it must answer regardless.
   maxClarificationRounds: '3'
   # -- Cross-conversation memory: how many past (query, summary) pairs to load at intake.
-  historyCount: '10'
+  historyCount: '30'
+  # -- How many past finished chats about the SAME incident to load at intake.
+  incidentHistoryCount: '5'
 
 # ----------------------------------------------------------------------------
 # llm — LLM backend configuration (AWS Bedrock)
@@ -86,6 +87,16 @@ llm:
 
   # -- AWS region used for Bedrock calls.
   region: us-east-1
+
+  # -- Seconds one LLM call may take before it is retried.
+  callTimeoutSeconds: '120'
+
+  # -- How many times a timed-out LLM call is retried before the run stops.
+  callRetries: '2'
+
+  # -- Prompt cache lifetime. '1h' keeps the cached prefix warm across a whole investigation;
+  # empty uses the provider's 5-minute default. '1h' costs more to write and far less to re-read.
+  promptCacheTtl: '1h'
 
   # -- Name of a pre-existing secret holding the AWS credentials
   # (keys: AWS_ACCESS_KEY_ID, AWS_REGION, AWS_SECRET_ACCESS_KEY).
@@ -134,6 +145,10 @@ dataPlane:
   # chart.
   databaseSecretName: randoli-agent-db
 
+  # -- Seconds any single Flight SQL statement may take. The per-call budget reservation runs
+  # on this path and fails CLOSED, so a slow store suppresses LLM calls rather than hanging.
+  dbTimeoutSeconds: '10'
+
 # ----------------------------------------------------------------------------
 # Scheduling. Top-level keys and their `global.` counterparts are merged (both
 # applied), so an umbrella chart can set them fleet-wide via `global.*`.
@@ -167,7 +182,7 @@ models:
   RCA_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
 
   # Runbook execution
-  RUNBOOK_ATLASSIAN_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RUNBOOK_TICKETING_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   RUNBOOK_COMPACTION_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
   RUNBOOK_EXECUTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   RUNBOOK_GITHUB_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
@@ -187,7 +202,7 @@ models:
   PERIODIC_RUNBOOK_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
 
   # Interactive SRE chat
-  SRE_CHAT_ATLASSIAN_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  SRE_CHAT_TICKETING_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   SRE_CHAT_COMPACTION_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
   SRE_CHAT_CONVERSATION_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
   SRE_CHAT_EXECUTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0

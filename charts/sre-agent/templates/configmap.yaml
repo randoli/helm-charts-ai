@@ -34,15 +34,31 @@ data:
   TEMPO_URL: '{{ .Values.observability.tempoUrl }}'
   TRACE_PROVIDER : tempo
 
-  BUDGET_RECONCILE_EVERY_S: '{{ .Values.analysis.budgetReconcileEverySeconds }}'
-  BUDGET_READ_TIMEOUT_S: '{{ .Values.analysis.budgetReadTimeoutSeconds }}'
+  # Budget enforcement is a per-call reservation against the audit store: each call claims
+  # this estimate before it runs, then settles to the real cost. No reconcile loop.
+  BUDGET_CALL_ESTIMATE_USD: '{{ .Values.analysis.budgetCallEstimateUsd }}'
+
+  # Every FlightSQL statement is bounded by these. The budget reservation runs on this path,
+  # and a read that cannot answer in time refuses the LLM call, so keep them tight.
+  DB_TIMEOUT_QUERY_S: '{{ .Values.dataPlane.dbTimeoutSeconds }}'
+  DB_TIMEOUT_FETCH_S: '{{ .Values.dataPlane.dbTimeoutSeconds }}'
+  DB_TIMEOUT_UPDATE_S: '{{ .Values.dataPlane.dbTimeoutSeconds }}'
 
   # Iteration caps per agent.
   RUNBOOK_MAX_ITERATIONS: '{{ .Values.analysis.maxIterationsRunbook }}'
   SRE_CHAT_MAX_ITERATIONS: '{{ .Values.sreChat.maxIterations }}'
-  SRE_CHAT_MAX_TOOLS_PER_STEP: '{{ .Values.sreChat.maxToolsPerStep }}'
   SRE_CHAT_MAX_CLARIFICATION_ROUNDS: '{{ .Values.sreChat.maxClarificationRounds }}'
+  LLM_CALL_TIMEOUT_S: '{{ .Values.llm.callTimeoutSeconds }}'
+  LLM_CALL_RETRIES: '{{ .Values.llm.callRetries }}'
   SRE_CHAT_HISTORY_COUNT: '{{ .Values.sreChat.historyCount }}'
+  SRE_CHAT_INCIDENT_HISTORY_COUNT: '{{ .Values.sreChat.incidentHistoryCount }}'
+
+  # How many tool calls run at once per iteration. There is no cap on how MANY a turn may
+  # contain; this bounds only how many are in flight, so a wide fan-out queues.
+  AGENT_TOOL_CONCURRENCY: '{{ .Values.analysis.toolConcurrency }}'
+
+  # '1h' keeps the cached prompt prefix warm across a whole run. Empty means the 5-minute default.
+  PROMPT_CACHE_TTL: '{{ .Values.llm.promptCacheTtl }}'
 
   # Model per role. Every agent resolves its models through these keys (model_provider/registry.py),
   # so the heavy reasoning steps and the cheap background ones can use different models. Each id must
