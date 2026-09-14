@@ -1,13 +1,14 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: sre-agent
+  name: randoli-sre-agent
   namespace: {{ .Release.Namespace }}
   labels:
-    app: randoli-sre-agent
+    {{- include "selectorLabels" . | nindent 4 }}
+    {{- include "labels" . | nindent 4 }}
 spec:
   selector:
-    app: randoli-sre-agent
+    {{- include "selectorLabels" . | nindent 4 }}
   ports:
     - protocol: TCP
       port: 80

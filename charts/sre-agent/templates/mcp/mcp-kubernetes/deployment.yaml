@@ -1,0 +1,104 @@
+{{- /*
+Kubernetes MCP server (containers/kubernetes-mcp-server) exposing read-oriented
+toolsets to the SRE agent over streamable HTTP. Not installed on OpenShift.
+*/ -}}
+{{- if and .Values.mcpServers.kubernetes.enabled (not .Values.global.openshift.enabled) }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: randoli-mcp-server-kubernetes
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: randoli-mcp-server-kubernetes
+    {{- include "mcpServerLabels" (dict "context" . "component" "randoli-mcp-server-kubernetes") | nindent 4 }}
+    {{- with .Values.global.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- with .Values.mcpServers.kubernetes.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- if or .Values.global.annotations .Values.mcpServers.kubernetes.annotations }}
+  annotations:
+    {{- with .Values.global.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- with .Values.mcpServers.kubernetes.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: randoli-mcp-server-kubernetes
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: randoli-mcp-server-kubernetes
+        {{- include "mcpServerLabels" (dict "context" . "component" "randoli-mcp-server-kubernetes") | nindent 8 }}
+        {{- with .Values.global.labels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.mcpServers.kubernetes.labels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.mcpServers.kubernetes.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: randoli-mcp-server-kubernetes
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: mcp-server
+        image: {{ .Values.mcpServers.kubernetes.image }}
+        imagePullPolicy: {{ .Values.mcpServers.kubernetes.imagePullPolicy }}
+        args:
+        - --port
+        - {{ .Values.mcpServers.kubernetes.port | quote }}
+        - --toolsets
+        - {{ .Values.mcpServers.kubernetes.toolsets | quote }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.mcpServers.kubernetes.port }}
+          protocol: TCP
+        {{- with .Values.mcpServers.kubernetes.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      {{- if or .Values.mcpServers.kubernetes.tolerations .Values.global.tolerations }}
+      tolerations:
+        {{- with .Values.mcpServers.kubernetes.tolerations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.global.tolerations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      {{- if or .Values.mcpServers.kubernetes.nodeSelector .Values.global.nodeSelector }}
+      nodeSelector:
+        {{- with .Values.mcpServers.kubernetes.nodeSelector }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.global.nodeSelector }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      {{- if or .Values.mcpServers.kubernetes.affinity .Values.global.affinity }}
+      affinity:
+        {{- with .Values.mcpServers.kubernetes.affinity }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.global.affinity }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+{{- end }}

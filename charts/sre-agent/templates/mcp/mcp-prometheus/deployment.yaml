@@ -1,0 +1,113 @@
+{{- /*
+Prometheus MCP server (tjhop/prometheus-mcp-server, read-only) exposing PromQL
+query tools to the SRE agent over streamable HTTP. Queries the Prometheus at
+observability.prometheusUrl.
+*/ -}}
+{{- if and .Values.mcpServers.prometheus.enabled .Values.observability.prometheusUrl }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: randoli-mcp-server-prometheus
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: randoli-mcp-server-prometheus
+    {{- include "mcpServerLabels" (dict "context" . "component" "randoli-mcp-server-prometheus") | nindent 4 }}
+    {{- with .Values.global.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- with .Values.mcpServers.prometheus.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- if or .Values.global.annotations .Values.mcpServers.prometheus.annotations }}
+  annotations:
+    {{- with .Values.global.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- with .Values.mcpServers.prometheus.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: randoli-mcp-server-prometheus
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: randoli-mcp-server-prometheus
+        {{- include "mcpServerLabels" (dict "context" . "component" "randoli-mcp-server-prometheus") | nindent 8 }}
+        {{- with .Values.global.labels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.mcpServers.prometheus.labels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.mcpServers.prometheus.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: mcp-server
+        image: {{ .Values.mcpServers.prometheus.image }}
+        imagePullPolicy: {{ .Values.mcpServers.prometheus.imagePullPolicy }}
+        args:
+        - --mcp.transport
+        - http
+        - --web.listen-address
+        - ":{{ .Values.mcpServers.prometheus.port }}"
+        - --prometheus.url
+        - {{ tpl .Values.observability.prometheusUrl . | quote }}
+        {{- with .Values.mcpServers.prometheus.extraArgs }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.mcpServers.prometheus.extraEnv }}
+        env:
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.mcpServers.prometheus.port }}
+          protocol: TCP
+        {{- with .Values.mcpServers.prometheus.resources }}
+        resources:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      {{- if or .Values.mcpServers.prometheus.tolerations .Values.global.tolerations }}
+      tolerations:
+        {{- with .Values.mcpServers.prometheus.tolerations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.global.tolerations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      {{- if or .Values.mcpServers.prometheus.nodeSelector .Values.global.nodeSelector }}
+      nodeSelector:
+        {{- with .Values.mcpServers.prometheus.nodeSelector }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.global.nodeSelector }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      {{- if or .Values.mcpServers.prometheus.affinity .Values.global.affinity }}
+      affinity:
+        {{- with .Values.mcpServers.prometheus.affinity }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.global.affinity }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+{{- end }}

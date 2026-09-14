@@ -4,34 +4,35 @@ metadata:
   name: randoli-sre-agent-config
   namespace: {{ .Release.Namespace }}
   labels:
-    app: randoli-sre-agent
+    {{- include "selectorLabels" . | nindent 4 }}
+    {{- include "labels" . | nindent 4 }}
 data:
   AGENT_CALLBACK_URL: '{{ tpl (.Values.dataPlane.agentCallbackUrl | toString) . }}'
   DAILY_USAGE_BUDGET_IN_USD: '{{ .Values.analysis.dailyBudgetUsd }}'
   ENABLED_NAMESPACES: '{{ .Values.analysis.enabledNamespaces }}'
   LOG_LEVEL: '{{ .Values.logLevel }}'
   ENABLED_WORKLOADS: '{{ .Values.analysis.enabledWorkloads }}'
-  FLIGHTSQL_URL: '{{ .Values.dataPlane.flightSqlUrl }}'
+  FLIGHTSQL_URL: '{{ tpl .Values.dataPlane.flightSqlUrl . }}'
   LLM_PROVIDER: '{{ .Values.llm.provider }}'
-  LOG_LOKI_URL: '{{ .Values.observability.lokiUrl }}'
+  LOG_LOKI_URL: '{{ tpl .Values.observability.lokiUrl . }}'
   LOG_PROVIDER : loki
   MCP_MAX_ITERATIONS : '{{ .Values.analysis.maxIterationsMCP }}'
-  OTEL_EXPORTER_OTLP_ENDPOINT:  '{{ .Values.observability.otelExporterEndpoint }}'
+  OTEL_EXPORTER_OTLP_ENDPOINT:  '{{ tpl .Values.observability.otelExporterEndpoint . }}'
   OTEL_EXPORTER_OTLP_PROTOCOL : grpc
   OTEL_DISABLED: '{{ .Values.observability.otelDisabled }}'
   OTEL_SERVICE_NAME: randoli-sre-agent
   OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT : '1000'
   OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT : '100000'
   OTEL_SPAN_EVENT_COUNT_LIMIT : '256'
-  PROMETHEUS_URL: '{{ .Values.observability.prometheusUrl }}'
+  PROMETHEUS_URL: '{{ tpl .Values.observability.prometheusUrl . }}'
   RCA_INVESTIGATOR_MAX_ITERATIONS : '{{ .Values.analysis.maxIterationsRCA }}'
   # config.py reads AWS_REGION, not REGION. The secret can also carry AWS_REGION;
   # whichever the secret sets wins, since envFrom applies the secret after this map.
   AWS_REGION: '{{ .Values.llm.region }}'
   RUNNING_IN_KUBERNETES: 'true'
-  TRACELOOP_BASE_URL: '{{ .Values.observability.traceLoopBaseUrl }}'
+  TRACELOOP_BASE_URL: '{{ tpl .Values.observability.traceLoopBaseUrl . }}'
   TRACELOOP_TRACE_CONTENT: 'false'
-  TEMPO_URL: '{{ .Values.observability.tempoUrl }}'
+  TEMPO_URL: '{{ tpl .Values.observability.tempoUrl . }}'
   TRACE_PROVIDER : tempo
 
   # Budget enforcement is a per-call reservation against the audit store: each call claims
