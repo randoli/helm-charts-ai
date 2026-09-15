@@ -54,14 +54,23 @@ analysis:
   # -- Maximum reasoning iterations of the runbook executor. Higher than RCA because a runbook
   # both investigates AND acts.
   maxIterationsRunbook: '35'
+  maxIterationsRunbookValidation: '11'
+  runbookValidationToolOutputCharLimit: '10000'
+  runbookValidationCompactionCharThreshold: '200000'
 
-  # -- How often (seconds) to reconcile the local spend total against the database. The budget
-  # check itself is local, so this only folds in what OTHER replicas have spent.
-  budgetReconcileEverySeconds: '60'
+  # -- What one LLM call claims against the daily budget before it runs, in USD. The claim is
+  # rewritten to the real cost once the call returns. Raising it refuses calls sooner near the
+  # cap; lowering it lets a burst overshoot by more.
+  budgetCallEstimateUsd: '1'
 
-  # -- Seconds to wait for that reconcile read before giving up. Failing to read fails CLOSED
-  # (LLM calls are suppressed), so keep this well under any client timeout.
-  budgetReadTimeoutSeconds: '5'
+  # -- How many tool calls run at once per iteration. Bounds concurrency only: every call the
+  # model asks for still runs, a wide fan-out just queues.
+  toolConcurrency: '8'
+  toolTransientRetries: '2'
+  kubernetesOperationTimeoutSeconds: '30'
+  budgetReserveWaitSeconds: '180'
+  budgetReprobeSeconds: '60'
+  budgetSweepIntervalSeconds: '600'
 
 # ----------------------------------------------------------------------------
 # sreChat — limits for the interactive chat agent. It is a hybrid (quick lookups,
@@ -70,12 +79,16 @@ analysis:
 sreChat:
   # -- Max tool-loop iterations per turn.
   maxIterations: '30'
-  # -- Max parallel tool calls the agent may request in one iteration.
-  maxToolsPerStep: '5'
   # -- How many times it may ask the user a clarifying question before it must answer regardless.
   maxClarificationRounds: '3'
   # -- Cross-conversation memory: how many past (query, summary) pairs to load at intake.
-  historyCount: '10'
+  historyCount: '30'
+  # -- How many past finished chats about the SAME incident to load at intake.
+  incidentHistoryCount: '5'
+  titleMaxChars: '80'
+  maxRunningTurns: '30'
+  maxWaitingTurns: '64'
+  waitTimeoutSeconds: '30'
 
 # ----------------------------------------------------------------------------
 # llm — LLM backend configuration (AWS Bedrock)
@@ -86,6 +99,16 @@ llm:
 
   # -- AWS region used for Bedrock calls.
   region: us-east-1
+
+  # -- Seconds one LLM call may take before it is retried.
+  callTimeoutSeconds: '120'
+
+  # -- How many times a timed-out LLM call is retried before the run stops.
+  callRetries: '2'
+
+  # -- Prompt cache lifetime. '1h' keeps the cached prefix warm across a whole investigation;
+  # empty uses the provider's 5-minute default. '1h' costs more to write and far less to re-read.
+  promptCacheTtl: '1h'
 
   # -- Name of a pre-existing secret holding the AWS credentials
   # (keys: AWS_ACCESS_KEY_ID, AWS_REGION, AWS_SECRET_ACCESS_KEY).
@@ -117,6 +140,8 @@ observability:
   # -- Set 'true' to stop the agent exporting its own traces and metrics. Only affects the agent's
   # self-telemetry; it still QUERIES Prometheus / Loki / Tempo for investigations either way.
   otelDisabled: 'false'
+  lokiTimeoutSeconds: '100'
+  tempoTimeoutSeconds: '30'
 
 # ----------------------------------------------------------------------------
 # dataPlane — Randoli data plane services the agent reports back to.
@@ -133,6 +158,48 @@ dataPlane:
   # (keys: username, password). Created by the data plane chart, NOT by this
   # chart.
   databaseSecretName: randoli-agent-db
+
+  # -- Seconds any single Flight SQL statement may take. The per-call budget reservation runs
+  # on this path and fails CLOSED, so a slow store suppresses LLM calls rather than hanging.
+  dbTimeoutSeconds: '10'
+  dbPoolMaxConnections: '16'
+  dbPoolAcquireTimeoutSeconds: '10'
+  dbPoolIdleTimeoutSeconds: '300'
+  dbMaxMessageSizeBytes: '67108864'
+  healthDbCheckTtlSeconds: '5'
+
+server:
+  backlog: '4096'
+  limitConcurrency: '0'
+  timeoutKeepAliveSeconds: '5'
+  timeoutGracefulShutdownSeconds: '30'
+  outboundHttpTimeoutSeconds: '30'
+  rateLimit:
+    enabled: 'true'
+    endpointBurst: '2000'
+    endpointPerSecond: '200'
+    clientBurst: '1000'
+    clientPerSecond: '100'
+    maxClients: '10000'
+  workers:
+    db: '16'
+    blocking: '8'
+    tool: '64'
+    llm: '64'
+
+mcpClient:
+  sessionsPerServer: '4'
+  callsPerSession: '16'
+  acquireTimeoutSeconds: '4'
+  connectTimeoutSeconds: '4'
+  openTimeoutSeconds: '15'
+  callTimeoutSeconds: '30'
+  maxAttempts: '2'
+  retryBackoffSeconds: '0.5'
+  openFailureBackoffSeconds: '2'
+  sessionMaxAgeSeconds: '600'
+  sessionIdleSeconds: '300'
+  defaultMaxCalls: '10'
 
 # ----------------------------------------------------------------------------
 # mcpServers — MCP servers wired into the agent. Each server installs its
@@ -168,22 +235,23 @@ mcpServers:
     podAnnotations: {}
 
   # Loki MCP server (Deployment + Service + CR; Randoli-repackaged
-  # grafana/mcp-grafana locked down to Loki, read-only). Talks to a
-  # Grafana-compatible endpoint for Loki queries; all connection config is
-  # optional — leave unset when running fully in-cluster.
+  # grafana/loki-mcp, read-only). Talks to Loki directly over its HTTP API
+  # and serves streamable HTTP on /stream.
   loki:
     enabled: true
     image: docker.io/randoli/loki-mcp:v0.6.0
     imagePullPolicy: IfNotPresent
+    # -- Port the server listens on (rendered as PORT) and the Service port.
     port: 8000
-    grafana:
-      # -- Grafana base URL. When empty, no GRAFANA_URL env is rendered.
-      url: ""
-      # -- Name of a pre-created secret holding a Grafana service-account
-      # token. When empty, no token env is rendered.
+    # -- Loki base URL (rendered as LOKI_URL). When empty, observability.lokiUrl is used.
+    lokiUrl: ""
+    # -- Loki tenant (rendered as LOKI_ORG_ID). When empty, no tenant is sent.
+    orgId: ""
+    auth:
+      # -- Name of a pre-created secret holding a Loki bearer token. When empty, no token env is rendered.
       secretName: ""
-      # -- Key within existingSecret holding the token.
-      tokenKey: GRAFANA_SERVICE_ACCOUNT_TOKEN
+      # -- Key within secretName holding the token.
+      tokenKey: LOKI_TOKEN
     # -- Extra container env vars / CLI args appended to the built-in set.
     extraEnv: []
     extraArgs: []
@@ -268,47 +336,58 @@ global:
 
 models:
   # Root cause analysis
-  RCA_COMPACTION_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  RCA_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   RCA_INVESTIGATOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  RCA_ITERATION_FINDING_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  RCA_ITERATION_FINDING_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   RCA_POST_PROCESSOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   RCA_TOOL_OUTPUT_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
   RCA_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
 
   # Runbook execution
-  RUNBOOK_ATLASSIAN_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  RUNBOOK_COMPACTION_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  RUNBOOK_TICKETING_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RUNBOOK_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   RUNBOOK_EXECUTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   RUNBOOK_GITHUB_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  RUNBOOK_ITERATION_FINDING_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  RUNBOOK_ITERATION_FINDING_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   RUNBOOK_POST_PROCESSOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   RUNBOOK_TOOL_OUTPUT_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
   RUNBOOK_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
 
   # Periodic (scheduled) runbook
-  PERIODIC_RUNBOOK_COMPACTION_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  PERIODIC_RUNBOOK_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   PERIODIC_RUNBOOK_EXECUTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   PERIODIC_RUNBOOK_GITHUB_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  PERIODIC_RUNBOOK_ITERATION_FINDING_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  PERIODIC_RUNBOOK_ITERATION_FINDING_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   PERIODIC_RUNBOOK_POST_PROCESSOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   PERIODIC_RUNBOOK_TICKETING_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   PERIODIC_RUNBOOK_TOOL_OUTPUT_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
   PERIODIC_RUNBOOK_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
 
+  RUNBOOK_VALIDATION_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RUNBOOK_VALIDATION_EXECUTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RUNBOOK_VALIDATION_GITHUB_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RUNBOOK_VALIDATION_ITERATION_FINDING_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RUNBOOK_VALIDATION_POST_PROCESSOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RUNBOOK_VALIDATION_TICKETING_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RUNBOOK_VALIDATION_TOOL_OUTPUT_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  RUNBOOK_VALIDATION_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+
   # Interactive SRE chat
-  SRE_CHAT_ATLASSIAN_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  SRE_CHAT_COMPACTION_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  SRE_CHAT_TICKETING_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  SRE_CHAT_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   SRE_CHAT_CONVERSATION_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
   SRE_CHAT_EXECUTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   SRE_CHAT_GITHUB_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  SRE_CHAT_ITERATION_FINDING_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  SRE_CHAT_ITERATION_FINDING_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   SRE_CHAT_POST_PROCESSOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   SRE_CHAT_TOOL_OUTPUT_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
   SRE_CHAT_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  SRE_CHAT_TITLE_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
 
   # MCP tool-calling agent
-  MCP_COMPACTION_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
-  MCP_ITERATION_FINDING_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  MCP_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  MCP_ITERATION_FINDING_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  MCP_POST_PROCESSOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   MCP_TOOL_CALLING_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   MCP_TOOL_OUTPUT_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
   MCP_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0

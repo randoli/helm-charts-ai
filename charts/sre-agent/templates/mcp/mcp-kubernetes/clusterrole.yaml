@@ -30,19 +30,11 @@ rules:
 - apiGroups:
   - apps
   resources:
-  - deployments
-  - statefulsets
   - deployments/scale
   - statefulsets/scale
   verbs:
   - patch
   - update
-- apiGroups:
-  - admissionregistration.k8s.io
-  resources:
-  - mutatingwebhookconfigurations
-  verbs:
-  - patch
 - apiGroups:
   - authorization.k8s.io
   resources:

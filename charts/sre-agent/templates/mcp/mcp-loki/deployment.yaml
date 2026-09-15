@@ -1,6 +1,7 @@
 {{- /*
-Loki MCP server (Randoli-repackaged grafana/mcp-grafana locked down to Loki,
-read-only) exposing Loki query tools to the SRE agent over streamable HTTP.
+Loki MCP server (Randoli-repackaged grafana/loki-mcp, read-only) exposing Loki
+query tools to the SRE agent over streamable HTTP at /stream. The server reads
+its listen port from PORT and the Loki base URL from LOKI_URL.
 */ -}}
 {{- if .Values.mcpServers.loki.enabled }}
 apiVersion: apps/v1
@@ -60,42 +61,25 @@ spec:
       - name: mcp-server
         image: {{ .Values.mcpServers.loki.image }}
         imagePullPolicy: {{ .Values.mcpServers.loki.imagePullPolicy }}
-        args:
-        - -t
-        - streamable-http
-        - --allowed-hosts=randoli-mcp-server-loki.{{ .Release.Namespace }}:{{ .Values.mcpServers.loki.port }},randoli-mcp-server-loki.{{ .Release.Namespace }}.svc:{{ .Values.mcpServers.loki.port }},randoli-mcp-server-loki:{{ .Values.mcpServers.loki.port }}
-        - --disable-prometheus
-        - --disable-pyroscope
-        - --disable-oncall
-        - --disable-dashboard
-        - --disable-alerting
-        - --disable-search
-        - --disable-admin
-        - --disable-rendering
-        - --disable-navigation
-        - --disable-cloudwatch
-        - --disable-clickhouse
-        - --disable-athena
-        - --disable-elasticsearch
-        - --disable-graphite
-        - --disable-snowflake
-        - --disable-influxdb
-        - --disable-runpanelquery
-        - --disable-write
         {{- with .Values.mcpServers.loki.extraArgs }}
+        args:
         {{- toYaml . | nindent 8 }}
         {{- end }}
         env:
-        {{- if .Values.mcpServers.loki.grafana.url }}
-        - name: GRAFANA_URL
-          value: {{ .Values.mcpServers.loki.grafana.url | quote }}
+        - name: PORT
+          value: {{ .Values.mcpServers.loki.port | quote }}
+        - name: LOKI_URL
+          value: {{ .Values.mcpServers.loki.lokiUrl | default .Values.observability.lokiUrl | quote }}
+        {{- if .Values.mcpServers.loki.orgId }}
+        - name: LOKI_ORG_ID
+          value: {{ .Values.mcpServers.loki.orgId | quote }}
         {{- end }}
-        {{- if .Values.mcpServers.loki.grafana.secretName }}
-        - name: GRAFANA_SERVICE_ACCOUNT_TOKEN
+        {{- if .Values.mcpServers.loki.auth.secretName }}
+        - name: LOKI_TOKEN
           valueFrom:
             secretKeyRef:
-              name: {{ .Values.mcpServers.loki.grafana.secretName }}
-              key: {{ .Values.mcpServers.loki.grafana.tokenKey }}
+              name: {{ .Values.mcpServers.loki.auth.secretName }}
+              key: {{ .Values.mcpServers.loki.auth.tokenKey }}
         {{- end }}
         {{- with .Values.mcpServers.loki.extraEnv }}
         {{- toYaml . | nindent 8 }}
