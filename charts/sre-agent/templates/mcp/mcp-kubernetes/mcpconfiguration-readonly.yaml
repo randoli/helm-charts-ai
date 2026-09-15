@@ -31,7 +31,6 @@ spec:
     - pods_get
     - pods_log
     - pods_top
-    - pods_exec
     - resources_get
     - resources_list
     - events_list
@@ -43,8 +42,8 @@ spec:
     - tekton_pipelinerun_logs
   prompt: |
     ## Kubernetes server notes
-    Scope: the live state of this cluster through the Kubernetes API: every resource kind including custom resources, recent events, container logs, current CPU and memory, and commands run inside running containers. Read-only.
-    Use for: object specs, status, conditions and owners; the revision history that ReplicaSets and ControllerRevisions keep; events; container state, termination reasons and exit codes; current and previous container logs; current usage; and state that only a running process or its files hold. Not for: history older than objects and recent events keep, log search across a window, metrics over time, or request traces; other servers cover those when they are connected.
+    Scope: the live state of this cluster through the Kubernetes API: every resource kind including custom resources, recent events, container logs, and current CPU and memory. Read-only.
+    Use for: object specs, status, conditions and owners; the revision history that ReplicaSets and ControllerRevisions keep; events; container state, termination reasons and exit codes; current and previous container logs; and current usage. Not for: history older than objects and recent events keep, log search across a window, metrics over time, or request traces; other servers cover those when they are connected.
     Can:
     - list and read pods: pods_list, pods_list_in_namespace, pods_get
     - read a container's current log, or the previous container's log with previous set: pods_log
@@ -54,15 +53,15 @@ spec:
     - read current CPU and memory of pods and nodes: pods_top, nodes_top, nodes_stats_summary
     - read node logs: nodes_log
     - read Tekton pipeline run logs: tekton_pipelinerun_logs
-    - run a command inside a running container: pods_exec
     Cannot:
-    - show Secret values through resources_get or resources_list: the platform replaces each value with a placeholder, so you can confirm that a Secret and its keys exist, and a hidden value is not a missing or empty one. pods_exec output is not masked, so never print an environment variable or file inside a container that may hold a credential; a command may use one when its output shows only the outcome, such as an exit code
+    - run a command inside a container, start a pod, or change any resource
+    - read state that only a running process or its files hold, such as topics, consumer groups, replication or users inside a broker or database; their custom resources and metrics show part of it
+    - show Secret values through resources_get or resources_list: the platform replaces each value with a placeholder, so you can confirm that a Secret and its keys exist, and a hidden value is not a missing or empty one
     - show events older than a few hours, pods that were deleted, or nodes that were removed; their names remain in metric and log history
     - show usage over time
-    - read the log of a container that has not started, or run a command in a container that is not running, such as one waiting on an image pull or between crash-loop restarts
+    - read the log of a container that has not started, such as one waiting on an image pull
     - join resources for you: list them, then read each one
     - tell a namespace that does not exist from a label selector that matched nothing: both return an empty list
-    - return the output of a pods_exec command that exits non-zero: the result is an error whose message holds only the exit code. The command did run, and that exit code is its answer, such as a name lookup that found nothing; read it as that command documents it
     Identifiers:
     - Pods of a Deployment are named <workload>-<replica set hash>-<suffix>, pods of a StatefulSet <workload>-<ordinal>, and pods of a Job <job>-<suffix>. A pod's name changes each time it is replaced.
     - A pod's OpenTelemetry service name is in its annotation resource.opentelemetry.io/service.name. That name keys request metrics, traces and service-level logs, and it often differs from the workload name.
@@ -72,7 +71,6 @@ spec:
     - Custom resources often hold the state of systems that operators and GitOps tools manage, where they are installed: GitOps applications (argoproj.io/v1alpha1 Application, whose status holds sync state, health and recent deploy history), Kafka clusters, topics and users (kafka.strimzi.io), external secrets and their sync status (external-secrets.io), certificates (cert-manager.io), PostgreSQL clusters (postgres-operator.crunchydata.com), backups (velero.io) and fault-injection experiments (chaos-mesh.org), which break things on purpose. resources_list with apiVersion apiextensions.k8s.io/v1 and kind CustomResourceDefinition shows which are installed.
     - An error like no matches for kind <Kind> in version <group>/<version> means the kind is not installed, or that version of it is not served. Read its CustomResourceDefinition (resources_get with apiVersion apiextensions.k8s.io/v1, kind CustomResourceDefinition, name <plural>.<group>) to tell which, and list again with a version it serves.
     - Nodes in spot or preemptible pools, labelled for example kubernetes.azure.com/scalesetpriority=spot or cloud.google.com/gke-spot=true, are replaced often, and their pods start again on other nodes.
-    - pods_exec runs the command directly, without a shell unless the command starts one, and many images ship no shell or common tools. A program that is not on the PATH needs its full path, such as bin/kafka-topics.sh in a Strimzi broker's kafka container. Stateful systems keep state the Kubernetes API does not show, such as topics, consumer groups, replication and users, and the tools in their own containers can read it. To keep the output of a command that can exit non-zero, run it through a shell when the image has one, as sh -c '<command>; echo exit=$?', so the call returns the output and the exit code.
     Going deeper:
     - why a pod is new: its metadata.creationTimestamp and spec.nodeName against the node's creationTimestamp, the owner's revisions, and eviction or preemption events while they last
     - what a crashed container printed: pods_log with previous set, starting with a small tail

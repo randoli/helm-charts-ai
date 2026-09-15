@@ -43,10 +43,9 @@ spec:
     - tekton_pipelinerun_logs
     - pods_delete
     - resources_scale
-    - resources_create_or_update
   prompt: |
     ## Kubernetes server notes
-    Scope: the live state of this cluster through the Kubernetes API, meaning every resource kind including custom resources, recent events, container logs and current CPU and memory; and three kinds of change: deleting a pod, scaling a workload, and creating or updating a resource from a manifest.
+    Scope: the live state of this cluster through the Kubernetes API, meaning every resource kind including custom resources, recent events, container logs and current CPU and memory; and two kinds of change: deleting a pod and scaling a workload.
     Use for: object specs, status, conditions and owners; the revision history that ReplicaSets and ControllerRevisions keep; events; container state, termination reasons and exit codes; current and previous container logs; current usage; and the changes a task asks for. Not for: history older than objects and recent events keep, log search across a window, metrics over time, or request traces; other servers cover those when they are connected.
     Can:
     - list and read pods: pods_list, pods_list_in_namespace, pods_get
@@ -58,17 +57,16 @@ spec:
     - read node logs: nodes_log
     - read Tekton pipeline run logs: tekton_pipelinerun_logs
     - delete a pod, which its controller replaces with a pod under a new name: pods_delete
-    - set the replica count of a Deployment, StatefulSet or other scalable resource: resources_scale
-    - create a resource, or update an existing one, from a YAML or JSON manifest, such as a changed container resource limit or an added annotation: resources_create_or_update
+    - set the replica count of a Deployment or StatefulSet: resources_scale
     Cannot:
-    - run a command inside a container, start a new pod, delete any resource other than a pod, or cordon or drain a node
+    - run a command inside a container, create any resource, change a resource other than its replica count, delete any resource other than a pod, or cordon or drain a node
     - show Secret values: the platform replaces each value with a placeholder, so you can confirm that a Secret and its keys exist, and a hidden value is not a missing or empty one
     - show events older than a few hours, pods that were deleted, or nodes that were removed; their names remain in metric and log history
     - show usage over time
     - read the log of a container that has not started, such as one waiting on an image pull
     - join resources for you: list them, then read each one
     - tell a namespace that does not exist from a label selector that matched nothing: both return an empty list
-    - undo a change: a replaced pod, a new replica count or an updated manifest stays until something changes it again
+    - undo a change: a replaced pod or a new replica count stays until something changes it again
     Identifiers:
     - Pods of a Deployment are named <workload>-<replica set hash>-<suffix>, pods of a StatefulSet <workload>-<ordinal>, and pods of a Job <job>-<suffix>. A pod's name changes each time it is replaced, so read the current names before a change that names a pod.
     - A pod's OpenTelemetry service name is in its annotation resource.opentelemetry.io/service.name. That name keys request metrics, traces and service-level logs, and it often differs from the workload name.
