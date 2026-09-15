@@ -154,6 +154,9 @@ dataPlane:
   # -- Arrow Flight SQL endpoint of the data plane's analytics store.
   flightSqlUrl: grpc+tcp://randoli-agent:31337
 
+  # -- Base URL of the OpenCost service the agent queries for cost data.
+  opencostUrl: http://opencost.randoli-agents.svc.cluster.local:8081
+
   # -- Name of a pre-existing secret holding the Flight SQL credentials
   # (keys: username, password). Created by the data plane chart, NOT by this
   # chart.
@@ -302,6 +305,12 @@ mcpServers:
   # randoli-agent umbrella: tempo/tempoDistributed mcp_server keys).
   tempo:
     enabled: true
+
+  # OpenCost MCP — no server Deployment; the CR points at the OpenCost
+  # service's built-in MCP endpoint (dataPlane.opencostUrl; OpenCost serves
+  # streamable HTTP MCP at the port root, no path suffix).
+  opencost:
+    enabled: false
 
 # ----------------------------------------------------------------------------
 # Scheduling. Top-level keys and their `global.` counterparts are merged (both
