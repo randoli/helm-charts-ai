@@ -1,13 +1,13 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: mcpconfiguration.mcp.ai.randoli.io
+  name: mcpconfigurations.mcp.ai.randoli.io
 spec:
   group: mcp.ai.randoli.io
   scope: Cluster
   names:
     kind: MCPConfiguration
-    plural: mcpconfiguration
+    plural: mcpconfigurations
     singular: mcpconfiguration
     shortNames: [mcpconf]
   versions:
