@@ -13,7 +13,7 @@ rules:
     apiGroups:
       - 'mcp.ai.randoli.io'
     resources:
-      - mcpconfiguration
+      - mcpconfigurations
   - verbs:
       - list
       - watch
