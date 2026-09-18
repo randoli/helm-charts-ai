@@ -1,0 +1,116 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: randoli-sre-agent-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "selectorLabels" . | nindent 4 }}
+    {{- include "labels" . | nindent 4 }}
+data:
+  AGENT_CALLBACK_URL: '{{ tpl (.Values.dataPlane.agentCallbackUrl | toString) . }}'
+  DAILY_USAGE_BUDGET_IN_USD: '{{ .Values.analysis.dailyBudgetUsd }}'
+  ENABLED_NAMESPACES: '{{ .Values.analysis.enabledNamespaces }}'
+  LOG_LEVEL: '{{ .Values.logLevel }}'
+  ENABLED_WORKLOADS: '{{ .Values.analysis.enabledWorkloads }}'
+  FLIGHTSQL_URL: '{{ tpl .Values.dataPlane.flightSqlUrl . }}'
+  LLM_PROVIDER: '{{ .Values.llm.provider }}'
+  LOG_LOKI_URL: '{{ tpl .Values.observability.lokiUrl . }}'
+  LOG_PROVIDER : loki
+  MCP_MAX_ITERATIONS : '{{ .Values.analysis.maxIterationsMCP }}'
+  OTEL_EXPORTER_OTLP_ENDPOINT:  '{{ tpl .Values.observability.otelExporterEndpoint . }}'
+  OTEL_EXPORTER_OTLP_PROTOCOL : grpc
+  OTEL_DISABLED: '{{ .Values.observability.otelDisabled }}'
+  OTEL_SERVICE_NAME: randoli-sre-agent
+  OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT : '1000'
+  OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT : '100000'
+  OTEL_SPAN_EVENT_COUNT_LIMIT : '256'
+  PROMETHEUS_URL: '{{ tpl .Values.observability.prometheusUrl . }}'
+  RCA_INVESTIGATOR_MAX_ITERATIONS : '{{ .Values.analysis.maxIterationsRCA }}'
+  # config.py reads AWS_REGION, not REGION. The secret can also carry AWS_REGION;
+  # whichever the secret sets wins, since envFrom applies the secret after this map.
+  AWS_REGION: '{{ .Values.llm.region }}'
+  RUNNING_IN_KUBERNETES: 'true'
+  TRACELOOP_BASE_URL: '{{ tpl .Values.observability.traceLoopBaseUrl . }}'
+  TRACELOOP_TRACE_CONTENT: 'false'
+  TEMPO_URL: '{{ tpl .Values.observability.tempoUrl . }}'
+  TRACE_PROVIDER : tempo
+
+  # Budget enforcement is a per-call reservation against the audit store: each call claims
+  # this estimate before it runs, then settles to the real cost. No reconcile loop.
+  BUDGET_CALL_ESTIMATE_USD: '{{ .Values.analysis.budgetCallEstimateUsd }}'
+
+  # Every FlightSQL statement is bounded by these. The budget reservation runs on this path,
+  # and a read that cannot answer in time refuses the LLM call, so keep them tight.
+  DB_TIMEOUT_QUERY_S: '{{ .Values.dataPlane.dbTimeoutSeconds }}'
+  DB_TIMEOUT_FETCH_S: '{{ .Values.dataPlane.dbTimeoutSeconds }}'
+  DB_TIMEOUT_UPDATE_S: '{{ .Values.dataPlane.dbTimeoutSeconds }}'
+
+  # Iteration caps per agent.
+  RUNBOOK_MAX_ITERATIONS: '{{ .Values.analysis.maxIterationsRunbook }}'
+  RUNBOOK_VALIDATION_MAX_ITERATIONS: '{{ .Values.analysis.maxIterationsRunbookValidation }}'
+  RUNBOOK_VALIDATION_TOOL_OUTPUT_CHAR_LIMIT: '{{ .Values.analysis.runbookValidationToolOutputCharLimit }}'
+  RUNBOOK_VALIDATION_COMPACTION_CHAR_THRESHOLD: '{{ .Values.analysis.runbookValidationCompactionCharThreshold }}'
+  SRE_CHAT_MAX_ITERATIONS: '{{ .Values.sreChat.maxIterations }}'
+  SRE_CHAT_MAX_CLARIFICATION_ROUNDS: '{{ .Values.sreChat.maxClarificationRounds }}'
+  LLM_CALL_TIMEOUT_S: '{{ .Values.llm.callTimeoutSeconds }}'
+  LLM_CALL_RETRIES: '{{ .Values.llm.callRetries }}'
+  SRE_CHAT_HISTORY_COUNT: '{{ .Values.sreChat.historyCount }}'
+  SRE_CHAT_INCIDENT_HISTORY_COUNT: '{{ .Values.sreChat.incidentHistoryCount }}'
+
+  # How many tool calls run at once per iteration. There is no cap on how MANY a turn may
+  # contain; this bounds only how many are in flight, so a wide fan-out queues.
+  AGENT_TOOL_CONCURRENCY: '{{ .Values.analysis.toolConcurrency }}'
+
+  # '1h' keeps the cached prompt prefix warm across a whole run. Empty means the 5-minute default.
+  PROMPT_CACHE_TTL: '{{ .Values.llm.promptCacheTtl }}'
+
+  SRE_CHAT_TITLE_MAX_CHARS: '{{ .Values.sreChat.titleMaxChars }}'
+  SRE_CHAT_MAX_RUNNING_TURNS: '{{ .Values.sreChat.maxRunningTurns }}'
+  SRE_CHAT_MAX_WAITING_TURNS: '{{ .Values.sreChat.maxWaitingTurns }}'
+  SRE_CHAT_WAIT_TIMEOUT_S: '{{ .Values.sreChat.waitTimeoutSeconds }}'
+  TOOL_TRANSIENT_RETRIES: '{{ .Values.analysis.toolTransientRetries }}'
+  K8S_OPERATION_TIMEOUT_S: '{{ .Values.analysis.kubernetesOperationTimeoutSeconds }}'
+  BUDGET_RESERVE_WAIT_S: '{{ .Values.analysis.budgetReserveWaitSeconds }}'
+  BUDGET_REPROBE_S: '{{ .Values.analysis.budgetReprobeSeconds }}'
+  BUDGET_SWEEP_INTERVAL_S: '{{ .Values.analysis.budgetSweepIntervalSeconds }}'
+  LOG_LOKI_TIMEOUT: '{{ .Values.observability.lokiTimeoutSeconds }}'
+  TEMPO_TIMEOUT: '{{ .Values.observability.tempoTimeoutSeconds }}'
+  DB_POOL_MAX_CONNECTIONS: '{{ .Values.dataPlane.dbPoolMaxConnections }}'
+  DB_POOL_ACQUIRE_TIMEOUT_S: '{{ .Values.dataPlane.dbPoolAcquireTimeoutSeconds }}'
+  DB_POOL_IDLE_TIMEOUT_S: '{{ .Values.dataPlane.dbPoolIdleTimeoutSeconds }}'
+  DB_MAX_MSG_SIZE_S: '{{ .Values.dataPlane.dbMaxMessageSizeBytes }}'
+  HEALTH_DB_CHECK_TTL_S: '{{ .Values.dataPlane.healthDbCheckTtlSeconds }}'
+  SERVER_BACKLOG: '{{ .Values.server.backlog }}'
+  SERVER_LIMIT_CONCURRENCY: '{{ .Values.server.limitConcurrency }}'
+  SERVER_TIMEOUT_KEEP_ALIVE_S: '{{ .Values.server.timeoutKeepAliveSeconds }}'
+  SERVER_TIMEOUT_GRACEFUL_SHUTDOWN_S: '{{ .Values.server.timeoutGracefulShutdownSeconds }}'
+  OUTBOUND_HTTP_TIMEOUT_S: '{{ .Values.server.outboundHttpTimeoutSeconds }}'
+  RATE_LIMIT_ENABLED: '{{ .Values.server.rateLimit.enabled }}'
+  RATE_LIMIT_ENDPOINT_BURST: '{{ .Values.server.rateLimit.endpointBurst }}'
+  RATE_LIMIT_ENDPOINT_PER_SECOND: '{{ .Values.server.rateLimit.endpointPerSecond }}'
+  RATE_LIMIT_CLIENT_BURST: '{{ .Values.server.rateLimit.clientBurst }}'
+  RATE_LIMIT_CLIENT_PER_SECOND: '{{ .Values.server.rateLimit.clientPerSecond }}'
+  RATE_LIMIT_MAX_CLIENTS: '{{ .Values.server.rateLimit.maxClients }}'
+  DB_POOL_WORKERS: '{{ .Values.server.workers.db }}'
+  BLOCKING_POOL_WORKERS: '{{ .Values.server.workers.blocking }}'
+  TOOL_POOL_WORKERS: '{{ .Values.server.workers.tool }}'
+  LLM_POOL_WORKERS: '{{ .Values.server.workers.llm }}'
+  MCP_SESSIONS_PER_SERVER: '{{ .Values.mcpClient.sessionsPerServer }}'
+  MCP_CALLS_PER_SESSION: '{{ .Values.mcpClient.callsPerSession }}'
+  MCP_ACQUIRE_TIMEOUT_S: '{{ .Values.mcpClient.acquireTimeoutSeconds }}'
+  MCP_CONNECT_TIMEOUT_S: '{{ .Values.mcpClient.connectTimeoutSeconds }}'
+  MCP_OPEN_TIMEOUT_S: '{{ .Values.mcpClient.openTimeoutSeconds }}'
+  MCP_CALL_TIMEOUT_S: '{{ .Values.mcpClient.callTimeoutSeconds }}'
+  MCP_MAX_ATTEMPTS: '{{ .Values.mcpClient.maxAttempts }}'
+  MCP_RETRY_BACKOFF_S: '{{ .Values.mcpClient.retryBackoffSeconds }}'
+  MCP_OPEN_FAILURE_BACKOFF_S: '{{ .Values.mcpClient.openFailureBackoffSeconds }}'
+  MCP_SESSION_MAX_AGE_S: '{{ .Values.mcpClient.sessionMaxAgeSeconds }}'
+  MCP_SESSION_IDLE_S: '{{ .Values.mcpClient.sessionIdleSeconds }}'
+  MCP_DEFAULT_MAX_CALLS: '{{ .Values.mcpClient.defaultMaxCalls }}'
+
+  # Model per role. Every agent resolves its models through these keys (model_provider/registry.py),
+  # so the heavy reasoning steps and the cheap background ones can use different models. Each id must
+  # also appear in the models.yaml pricing file mounted by this chart.
+  {{- range $role, $model := .Values.models }}
+  {{ $role }}: '{{ $model }}'
+  {{- end }}

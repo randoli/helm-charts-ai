@@ -1,0 +1,96 @@
+{{- if and .Values.mcpServers.prometheus.enabled .Values.observability.prometheusUrl }}
+apiVersion: mcp.ai.randoli.io/v1beta1
+kind: MCPConfiguration
+metadata:
+  name: mcp-prometheus
+  annotations:
+    mcp.ai.randoli.io/rca:                "enabled"
+    mcp.ai.randoli.io/runbook:            "enabled"
+    mcp.ai.randoli.io/periodic-runbook:   "enabled"
+    mcp.ai.randoli.io/runbook-validation: "enabled"
+    mcp.ai.randoli.io/sre-chat:           "enabled"
+    {{- with .Values.global.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- with .Values.mcpServers.prometheus.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  labels:
+    {{- include "mcpServerLabels" (dict "context" . "component" "randoli-mcp-server-prometheus") | nindent 4 }}
+    {{- with .Values.global.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- with .Values.mcpServers.prometheus.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: prometheus
+  transport: streamable_http
+  url: http://randoli-mcp-server-prometheus.{{ .Release.Namespace }}.svc:{{ .Values.mcpServers.prometheus.port }}/mcp
+  allowedTools:
+    - query
+    - range_query
+    - label_names
+    - label_values
+    - series
+    - metric_metadata
+  prompt: |
+    ## Prometheus server notes
+    Scope: metrics this cluster's Prometheus scrapes, within its retention. Read-only.
+    Use for: how a value changed over time: CPU, memory, restarts, and pod and node state, including pods and nodes that are gone; request rate, errors and latency into and out of a service; database connection pools and database health; message consumer lag; JVM memory and garbage collection; and the health of platform components. Not for: log lines, traces, or the current spec of an object.
+    Can:
+    - run PromQL at one instant: query
+    - run PromQL over a window with start_time, end_time and step: range_query
+    - list label names, and one label's values, including __name__ for metric names: label_names, label_values
+    - list the series that match a selector, with all their labels: series
+    - read a metric's type and unit: metric_metadata
+    Cannot:
+    - show why a scrape failed: up only says whether it succeeded
+    - show data outside its retention, or from targets it does not scrape
+    - tell a missing metric, a missing label and a value that matched nothing apart: each returns an empty result
+    Identifiers (one service carries different names in different series, so read one series' labels with series before filtering):
+    - Kubernetes state and container series use namespace, pod, container and node. Filter a workload with pod=~"<workload>-.*".
+    - On kube_pod_* series other than kube_pod_info, a node or instance label can name the node or scrape target of the kube-state-metrics pod that exported the series, not the node the pod ran on. Read a pod's node from kube_pod_info, and match one pod across series by its uid label.
+    - OpenTelemetry series (span metrics, and the OpenTelemetry HTTP, database-pool and JVM series) use service_name for the OpenTelemetry service name, job for "<namespace>/<otel service name>" or "<otel service name>", and k8s_namespace_name, k8s_deployment_name and k8s_pod_name.
+    - Micrometer series scraped from Java services (http_server_requests_seconds_*, http_client_requests_seconds_*, hikaricp_*, jdbc_*, lettuce_* and their jvm_* series) use service_name, job, app and service for the scraped Kubernetes Service's name, which is the workload name in some namespaces and the OpenTelemetry service name in others, together with k8s_namespace_name, k8s_pod_name and pod.
+    - The same service can appear under both naming schemes, and some instrumented services send no span metrics. Workaround: list service_name values on the metric you need before concluding a service has no data there.
+    Series by question (list names with label_values on __name__ to see which exist in the window):
+    - Where and when a pod ran: kube_pod_info (node, created_by_kind, created_by_name), kube_pod_created, kube_pod_start_time, kube_pod_deletion_timestamp, kube_pod_status_phase, kube_pod_status_ready and kube_pod_status_reason. These keep the names of pods and nodes that no longer exist.
+    - Restarts and terminations: kube_pod_container_status_restarts_total, kube_pod_container_status_last_terminated_reason (reason), kube_pod_container_status_last_terminated_exitcode, kube_pod_container_status_last_terminated_timestamp and kube_pod_container_status_waiting_reason (reason).
+    - Nodes: kube_node_created, kube_node_status_condition (condition, status; on managed node pools it also carries the provider's conditions, such as scheduled VM events and preemption), kube_node_spec_unschedulable, kube_node_spec_taint and kube_node_labels (spot or preemptible pools show in its label_* values); node_memory_MemAvailable_bytes, node_filesystem_avail_bytes and node_disk_io_time_seconds_total.
+    - Controllers and volumes: kube_deployment_status_replicas_unavailable, kube_statefulset_status_replicas_ready, kube_daemonset_status_number_unavailable, kube_job_status_failed and kube_persistentvolumeclaim_status_phase; kubelet_volume_stats_used_bytes and kubelet_volume_stats_capacity_bytes (persistentvolumeclaim).
+    - Container resources: container_cpu_usage_seconds_total, container_cpu_cfs_throttled_periods_total, container_memory_working_set_bytes, container_oom_events_total, container_fs_usage_bytes and container_network_receive_errors_total, against kube_pod_container_resource_limits (resource). Series with an empty container label are pod totals, so filter container!="".
+    - Requests into a service: randoli_metrics_otel_span_metrics_calls_total and randoli_metrics_otel_span_metrics_duration_milliseconds_bucket, _count and _sum (span_kind="SPAN_KIND_SERVER", span_name, status_code STATUS_CODE_OK, STATUS_CODE_ERROR or STATUS_CODE_UNSET, http_status_code); http_server_request_duration_seconds_* (http_route, http_request_method, http_response_status_code, error_type); http_server_requests_seconds_count, _sum and _max (uri, method, status, outcome, exception).
+    - Calls a service makes: span metrics with span_kind="SPAN_KIND_CLIENT" or "SPAN_KIND_PRODUCER" (server_address, span_name, messaging_system); http_client_request_duration_seconds_* (server_address, http_response_status_code, error_type); http_client_requests_seconds_* (client_name as the target host, uri, status, outcome).
+    - Traffic at the edge: nginx_ingress_controller_requests_total and nginx_ingress_controller_request_duration_seconds_* (exported_namespace, exported_service, ingress, host, status); kong_http_requests_total (exported_service as <namespace>.<service>.<port>, route, code), kong_upstream_latency_ms_* and kong_upstream_target_health (upstream, target, state).
+    - Database connection pools in the caller: hikaricp_connections_active, _idle, _pending, _max, _timeout_total and _acquire_seconds_* (pool); db_client_connections_usage (state used or idle), db_client_connections_max, _pending_requests, _wait_time_milliseconds_* and _timeouts_total (pool_name); jdbc_connections_active and jdbc_connections_max (name); spring_data_repository_invocations_seconds_* (repository, method, exception); in Go services, db_sql_client_latency_milliseconds_* and db_sql_client_calls_total (db_operation, db_sql_status, and db_sql_error with the error text).
+    - PostgreSQL servers: postgresql_backends against postgresql_connection_max, postgresql_deadlocks_total, postgresql_rollbacks_total, postgresql_database_locks, postgresql_replication_data_delay_bytes and postgresql_wal_age_seconds (postgresql_database_name, with service_name and instance for the server); per statement, db_postgresql_query_mean_exec_time_seconds, db_postgresql_query_calls_total and db_postgresql_query_exec_time_seconds_total (db, role, query); sessions, db_postgresql_blocked_sessions_total, db_postgresql_waiting_sessions_seconds_total and db_postgresql_long_running_queries_seconds.
+    - Redis, from Java clients: lettuce_command_completion_seconds_* and lettuce_command_firstresponse_seconds_* (command, and remote for the Redis address).
+    - Kafka: broker health in kafka_brokers, kafka_partition_under_replicated, kafka_partition_offline, kafka_controller_active_count and kafka_request_failed_total (type); topics in kafka_topic_partitions (topic); consumer lag from Java clients in kafka_consumer_fetch_manager_records_lag_max and kafka_consumer_fetch_manager_records_lag (client_id, topic, partition) and kafka_consumer_group_lag_ratio (consumer_group_id, topic); producer errors in kafka_producer_record_error_total (topic).
+    - NATS: nats_varz_connections, nats_varz_slow_consumers, nats_varz_in_msgs and nats_varz_out_msgs; JetStream consumers in nats_consumer_num_pending, nats_consumer_num_ack_pending and nats_consumer_num_redelivered (stream_name, consumer_name).
+    - JVM, only for Java services: jvm_memory_used_bytes (area heap or nonheap), jvm_gc_pause_seconds_* (action, cause), jvm_gc_overhead, jvm_threads_states_threads (state), executor_active_threads and executor_queued_tasks.
+    - Platform components: certmanager_certificate_expiration_timestamp_seconds and certmanager_certificate_ready_status (name, namespace); externalsecret_status_condition and externalsecret_sync_calls_error_total (name, exported_namespace); up (job, instance) for scrape success; the telemetry pipeline in vector_component_errors_total, otelcol_receiver_refused_spans_total, otelcol_exporter_send_failed_metric_points_total, loki_request_duration_seconds_* and tempo_request_duration_seconds_*.
+    Query shapes that work here:
+    - p95 latency into a service: histogram_quantile(0.95, sum by (le) (rate(randoli_metrics_otel_span_metrics_duration_milliseconds_bucket{service_name="<otel service name>", span_kind="SPAN_KIND_SERVER"}[5m])))
+    - error ratio into a service: sum(rate(randoli_metrics_otel_span_metrics_calls_total{service_name="<otel service name>", span_kind="SPAN_KIND_SERVER", status_code="STATUS_CODE_ERROR"}[5m])) / sum(rate(randoli_metrics_otel_span_metrics_calls_total{service_name="<otel service name>", span_kind="SPAN_KIND_SERVER"}[5m]))
+    - which dependency slowed: histogram_quantile(0.95, sum by (le, server_address) (rate(randoli_metrics_otel_span_metrics_duration_milliseconds_bucket{service_name="<otel service name>", span_kind="SPAN_KIND_CLIENT"}[5m])))
+    - status codes of a Micrometer service: sum by (status, uri) (rate(http_server_requests_seconds_count{service_name="<scraped service name>"}[5m]))
+    - memory against its limit per pod: max by (pod) (container_memory_working_set_bytes{namespace="<namespace>", pod=~"<workload>-.*", container!=""}) / max by (pod) (kube_pod_container_resource_limits{namespace="<namespace>", pod=~"<workload>-.*", resource="memory"})
+    - which node each pod ran on over time: kube_pod_info{namespace="<namespace>", pod=~"<workload>-.*"} over a range from well before the incident; a new pod or node value marks a reschedule
+    - restarts in a window: increase(kube_pod_container_status_restarts_total{namespace="<namespace>", pod=~"<workload>-.*"}[<window>])
+    - counters: wrap _total and _count series in rate() or increase()
+    Reading these for a cause (each line is a comparison between two series that separates explanations; a value counts only for the labels it carries, and only against the window before it or its limit):
+    - Slowness, where it comes from: which percentile moved says what kind of problem it is, so compare p50, p95 and p99 on the same route. Only p99 moving points to a few slow paths, a pause or a lock; every percentile moving points to saturation or a dependency. Then compare the service's own p95 with the p95 of its client spans per server_address: when the client span accounts for the rise, the cause is downstream and the next read is that dependency's own latency and errors; when it does not, the time is spent inside the service.
+    - Slowness, inside the service: latency rising while CPU stays flat points to waiting, which is I/O, a connection pool, a lock or a dependency, not CPU. Throttled CFS periods rising with modest CPU usage is the CPU limit, and the fix is the limit. Garbage collection pause time rising with heap near its maximum is memory. Queued executor tasks or pending pool requests rising is arrival outpacing service, so compare the request rate over the same window: a flat rate with rising queueing means each request got slower, and a rising rate means load.
+    - Database from the caller's side: active connections at the pool maximum, pending requests above zero and acquire time rising is the pool itself. Compare with the database's own per-statement mean time: flat statement time with rising acquire time means the pool size or connections held too long; statement time rising too means the database or the statements.
+    - Statements: for one statement, calls rising with a flat mean time is load; flat calls with a rising mean is that query or the data it reads, such as a missing index, changed statistics or growth in the rows it touches. Rank statements by calls multiplied by mean time to see which one costs the most, because the slowest statement is often not the expensive one. Deadlocks, rollbacks, blocked sessions and long-running queries point to locking rather than the query plan; replication delay and WAL age point to the server.
+    - Errors, which hop returned them: compare the error ratio at the edge, in the service's own server spans, and in its client spans. Errors at the edge with none in the service means requests never arrived, so read endpoints and readiness. Errors in the service with none in its client spans means the service itself. Errors in its client spans means the dependency, which is then read on its own series. A rate that fell to zero with errors at the edge is unreachability, not a slow service.
+    - Kafka: producer errors on a topic next to under-replicated and offline partitions and the active controller count. Under-replication or a controller change explains a burst that recovers; it does not explain an ongoing failure. Consumer lag climbing steadily with healthy brokers is the consumer or its parallelism, lag flat with no progress is a consumer that stopped, and lag on one partition with the others fine is one instance or one key.
+    - Whichever the question, take the series whose onset is earliest as the candidate origin, and read each pod's or instance's series on its own, since one bad replica averages away. A value that never moves at all is usually stale, from a failed scrape or exporter, rather than stable: check up and the series' last change before using it.
+    Limits:
+    - A selector without label filters can match more series than one result holds, and output past truncation_limit is cut. Workaround: add label filters, aggregate with sum by, or use topk().
+    - A wide step or rate window averages away a short spike. Workaround: query a brief breach over a narrow window with a small step.
+    - An instant query only sees series that reported in the last few minutes, so a pod or target that has gone looks absent. Workaround: use range_query over the time it existed.
+    - range_query prints each point as <value> @[<Unix seconds>], and converting Unix seconds to a date by hand goes wrong easily. Workaround: place a point by its difference from start_time in seconds (3600 is one hour), never by its position in the list, and check that the time you get lies between start_time and end_time.
+{{- end }}

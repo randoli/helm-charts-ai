@@ -1,14 +1,403 @@
+# ============================================================================
+# Randoli SRE Agent — configuration values
+#
+# Install modes:
+#   * As a dependency of the randoli-agent (data plane) umbrella chart: the
+#     defaults in `observability:` and `dataPlane:` already point at the
+#     umbrella's service names, so only `analysis.enabledNamespaces` must be set.
+#   * Standalone: override EVERY value in `observability:` and `dataPlane:` to
+#     point at your own Prometheus / Loki / Tempo / OTel collector / Flight
+#     SQL / callback endpoints, and create the required secrets (see readme).
+#
+# Model pricing is NOT a value here: it ships as templates/models-configmap.yaml and is mounted at
+# /etc/agentic-ai/models.yaml. Every id in `models:` below must have an entry there, or that call is
+# rejected as an unsupported model.
+# ============================================================================
+
+image:
+  # -- Image repository of the SRE agent. This is the PUBLIC repo the webhook-driven pipeline
+  # publishes to; the old private randoli/ai-agent is no longer built.
+  repository: docker.io/randoli/sre-agent
+  # -- Image tag. Defaults to the chart's appVersion when empty; set this to
+  # run a different agent version (takes precedence over appVersion).
+  tag: ""
+
+# -- Extra annotations added to the agent pod template (e.g. service-mesh
+# sidecar hints). Merged with the chart's own checksum annotation.
+annotations: {}
+
+# python levels (DEBUG / INFO / WARNING / ERROR).
+logLevel: 'INFO'
+
+# ----------------------------------------------------------------------------
+# analysis — investigation scope, LLM budget, and reasoning limits
+# ----------------------------------------------------------------------------
+analysis:
+  # -- Namespaces the agent may analyze, as a comma-separated list.
+  # REQUIRED: replace the placeholder. Escape commas as `\,` with --set.
+  enabledNamespaces: 'namespace1,namespace2'
+
+  # -- Workloads to restrict analysis to (comma-separated).
+  # Empty means all workloads in the enabled namespaces.
+  enabledWorkloads: ''
+
+  # -- Daily budget cap for LLM (Bedrock) calls, in USD. Analysis pauses for
+  # the rest of the day once the cap is reached.
+  dailyBudgetUsd: '20'
+
+  # -- Maximum reasoning iterations of the MCP tool-calling loop per query.
+  maxIterationsMCP: '25'
+
+  # -- Maximum reasoning iterations of the root-cause-analysis investigator.
+  maxIterationsRCA: '25'
+
+  # -- Maximum reasoning iterations of the runbook executor. Higher than RCA because a runbook
+  # both investigates AND acts.
+  maxIterationsRunbook: '35'
+  maxIterationsRunbookValidation: '11'
+  runbookValidationToolOutputCharLimit: '10000'
+  runbookValidationCompactionCharThreshold: '200000'
+
+  # -- What one LLM call claims against the daily budget before it runs, in USD. The claim is
+  # rewritten to the real cost once the call returns. Raising it refuses calls sooner near the
+  # cap; lowering it lets a burst overshoot by more.
+  budgetCallEstimateUsd: '1'
+
+  # -- How many tool calls run at once per iteration. Bounds concurrency only: every call the
+  # model asks for still runs, a wide fan-out just queues.
+  toolConcurrency: '8'
+  toolTransientRetries: '2'
+  kubernetesOperationTimeoutSeconds: '30'
+  budgetReserveWaitSeconds: '180'
+  budgetReprobeSeconds: '60'
+  budgetSweepIntervalSeconds: '600'
+
+# ----------------------------------------------------------------------------
+# sreChat — limits for the interactive chat agent. It is a hybrid (quick lookups,
+# bounded actions, and deep dives), so its caps sit between RCA and runbook.
+# ----------------------------------------------------------------------------
+sreChat:
+  # -- Max tool-loop iterations per turn.
+  maxIterations: '30'
+  # -- How many times it may ask the user a clarifying question before it must answer regardless.
+  maxClarificationRounds: '3'
+  # -- Cross-conversation memory: how many past (query, summary) pairs to load at intake.
+  historyCount: '30'
+  # -- How many past finished chats about the SAME incident to load at intake.
+  incidentHistoryCount: '5'
+  titleMaxChars: '80'
+  maxRunningTurns: '30'
+  maxWaitingTurns: '64'
+  waitTimeoutSeconds: '30'
+
+# ----------------------------------------------------------------------------
+# llm — LLM backend configuration (AWS Bedrock)
+# ----------------------------------------------------------------------------
+llm:
+  # -- LLM provider. Currently only 'aws' (AWS Bedrock) is supported.
+  provider: aws
+
+  # -- AWS region used for Bedrock calls.
+  region: us-east-1
+
+  # -- Seconds one LLM call may take before it is retried.
+  callTimeoutSeconds: '120'
+
+  # -- How many times a timed-out LLM call is retried before the run stops.
+  callRetries: '2'
+
+  # -- Prompt cache lifetime. '1h' keeps the cached prefix warm across a whole investigation;
+  # empty uses the provider's 5-minute default. '1h' costs more to write and far less to re-read.
+  promptCacheTtl: '1h'
+
+  # -- Name of a pre-existing secret holding the AWS credentials
+  # (keys: AWS_ACCESS_KEY_ID, AWS_REGION, AWS_SECRET_ACCESS_KEY).
+  # This secret is NOT created by the chart — see the readme.
+  credentialsSecretName: randoli-sre-agent-secret
+
+# ----------------------------------------------------------------------------
+# observability — telemetry backends the agent queries and exports to.
+# Defaults match the service names installed by the randoli-agent data plane
+# chart. Standalone installs MUST override every value in this section.
+# ----------------------------------------------------------------------------
+observability:
+  # -- Base URL of the Prometheus server used for metrics queries.
+  prometheusUrl: http://randoli-obs-prometheus:80
+
+  # -- Base URL of the Loki gateway used for log queries.
+  lokiUrl: http://randoli-obs-loki:3100
+
+  # -- Base URL of the Tempo query endpoint used for trace queries.
+  tempoUrl: http://randoli-obs-tempo:3200
+
+  # -- OTLP gRPC endpoint of the OpenTelemetry collector the agent exports its
+  # own telemetry to.
+  otelExporterEndpoint: http://randoli-otel-collector:4317
+
+  # -- OTLP HTTP endpoint of the OpenTelemetry collector (Traceloop base URL).
+  traceLoopBaseUrl: http://randoli-otel-collector:4318
+
+  # -- Set 'true' to stop the agent exporting its own traces and metrics. Only affects the agent's
+  # self-telemetry; it still QUERIES Prometheus / Loki / Tempo for investigations either way.
+  otelDisabled: 'false'
+  lokiTimeoutSeconds: '100'
+  tempoTimeoutSeconds: '30'
+
+# ----------------------------------------------------------------------------
+# dataPlane — Randoli data plane services the agent reports back to.
+# Defaults match the randoli-agent umbrella chart's service names.
+# Standalone installs MUST override every value in this section.
+# ----------------------------------------------------------------------------
+dataPlane:
+  agentCallbackUrl: http://randoli-agent:8080/
+
+  # -- Arrow Flight SQL endpoint of the data plane's analytics store.
+  flightSqlUrl: grpc+tcp://randoli-agent:31337
+
+  # -- Base URL of the OpenCost service the agent queries for cost data.
+  opencostUrl: http://opencost.randoli-agents.svc.cluster.local:8081
+
+  # -- Name of a pre-existing secret holding the Flight SQL credentials
+  # (keys: username, password). Created by the data plane chart, NOT by this
+  # chart.
+  databaseSecretName: randoli-agent-db
+
+  # -- Seconds any single Flight SQL statement may take. The per-call budget reservation runs
+  # on this path and fails CLOSED, so a slow store suppresses LLM calls rather than hanging.
+  dbTimeoutSeconds: '10'
+  dbPoolMaxConnections: '16'
+  dbPoolAcquireTimeoutSeconds: '10'
+  dbPoolIdleTimeoutSeconds: '300'
+  dbMaxMessageSizeBytes: '67108864'
+  healthDbCheckTtlSeconds: '5'
+
+server:
+  backlog: '4096'
+  limitConcurrency: '0'
+  timeoutKeepAliveSeconds: '5'
+  timeoutGracefulShutdownSeconds: '30'
+  outboundHttpTimeoutSeconds: '30'
+  rateLimit:
+    enabled: 'true'
+    endpointBurst: '2000'
+    endpointPerSecond: '200'
+    clientBurst: '1000'
+    clientPerSecond: '100'
+    maxClients: '10000'
+  workers:
+    db: '16'
+    blocking: '8'
+    tool: '64'
+    llm: '64'
+
+mcpClient:
+  sessionsPerServer: '4'
+  callsPerSession: '16'
+  acquireTimeoutSeconds: '4'
+  connectTimeoutSeconds: '4'
+  openTimeoutSeconds: '15'
+  callTimeoutSeconds: '30'
+  maxAttempts: '2'
+  retryBackoffSeconds: '0.5'
+  openFailureBackoffSeconds: '2'
+  sessionMaxAgeSeconds: '600'
+  sessionIdleSeconds: '300'
+  defaultMaxCalls: '10'
+
+# ----------------------------------------------------------------------------
+# mcpServers — MCP servers wired into the agent. Each server installs its
+# in-cluster Deployment/Service (where needed) plus the MCPConfiguration CR
+# that registers it with the agent (the agent watches the CRD in crds/).
+# All servers install by default; turn any off with its `enabled` flag.
+#
+# ----------------------------------------------------------------------------
+mcpServers:
+  # Kubernetes MCP server (Deployment + Service + RBAC + CR).
+  # Automatically disabled on OpenShift (global.openshift.enabled=true).
+  kubernetes:
+    enabled: true
+    # -- Image as registry/repo:tag (optionally repo@sha256:digest).
+    image: ghcr.io/containers/kubernetes-mcp-server:v0.0.66
+    imagePullPolicy: IfNotPresent
+    port: 8080
+    # -- Toolsets exposed by the server (see containers/kubernetes-mcp-server docs).
+    toolsets: "config,core,kcp,kiali,kubevirt,tekton"
+    resources:
+      requests:
+        cpu: 50m
+        memory: 258Mi
+      limits:
+        memory: 1Gi
+    # Scheduling — merged with the global.* counterparts (both applied).
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+    # -- Extra labels/annotations merged over the standard set (global.* applied first).
+    labels: {}
+    annotations: {}
+    podAnnotations: {}
+
+  # Loki MCP server (Deployment + Service + CR; Randoli-repackaged
+  # grafana/loki-mcp, read-only). Talks to Loki directly over its HTTP API
+  # and serves streamable HTTP on /stream.
+  loki:
+    enabled: true
+    image: docker.io/randoli/loki-mcp:v0.6.0
+    imagePullPolicy: IfNotPresent
+    # -- Port the server listens on (rendered as PORT) and the Service port.
+    port: 8000
+    # -- Loki base URL (rendered as LOKI_URL). When empty, observability.lokiUrl is used.
+    lokiUrl: ""
+    # -- Loki tenant (rendered as LOKI_ORG_ID). When empty, no tenant is sent.
+    orgId: ""
+    auth:
+      # -- Name of a pre-created secret holding a Loki bearer token. When empty, no token env is rendered.
+      secretName: ""
+      # -- Key within secretName holding the token.
+      tokenKey: LOKI_TOKEN
+    # -- Extra container env vars / CLI args appended to the built-in set.
+    extraEnv: []
+    extraArgs: []
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
+    # Scheduling — merged with the global.* counterparts (both applied).
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+    # -- Extra labels/annotations merged over the standard set (global.* applied first).
+    labels: {}
+    annotations: {}
+    podAnnotations: {}
+
+  # Prometheus MCP server (Deployment + Service + CR; tjhop/prometheus-mcp-server,
+  # read-only PromQL over streamable HTTP). Queries the Prometheus at
+  # `observability.prometheusUrl`; installs only when that URL is set.
+  prometheus:
+    enabled: true
+    image: ghcr.io/tjhop/prometheus-mcp-server:v0.18.0
+    imagePullPolicy: IfNotPresent
+    port: 8080
+    # -- Extra container env vars / CLI args appended to the built-in set.
+    extraEnv: []
+    extraArgs: []
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
+    # Scheduling — merged with the global.* counterparts (both applied).
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
+    # -- Extra labels/annotations merged over the standard set (global.* applied first).
+    labels: {}
+    annotations: {}
+    podAnnotations: {}
+
+  # Tempo MCP — no server Deployment; the CR points at the Tempo
+  # query-frontend's built-in MCP endpoint (<observability.tempoUrl>/api/mcp).
+  # The endpoint itself is enabled by the chart that installs Tempo (in the
+  # randoli-agent umbrella: tempo/tempoDistributed mcp_server keys).
+  tempo:
+    enabled: true
+
+  # OpenCost MCP — no server Deployment; the CR points at the OpenCost
+  # service's built-in MCP endpoint (dataPlane.opencostUrl; OpenCost serves
+  # streamable HTTP MCP at the port root, no path suffix).
+  opencost:
+    enabled: false
+
+# ----------------------------------------------------------------------------
+# Scheduling. Top-level keys and their `global.` counterparts are merged (both
+# applied), so an umbrella chart can set them fleet-wide via `global.*`.
+# ----------------------------------------------------------------------------
+
+# -- nodeSelector constraints for the agent pod.
+nodeSelector:
+
+# -- Affinity rules for the agent pod.
+affinity:
+
+# -- Tolerations for the agent pod.
+tolerations:
+
 global:
+  # -- Umbrella-chart-wide nodeSelector, merged with the top-level key.
   nodeSelector:
+  # -- Umbrella-chart-wide affinity, merged with the top-level key.
   affinity:
+  # -- Umbrella-chart-wide tolerations, merged with the top-level key.
   tolerations:
-annotations:
-image: docker.io/randoli/ai-agent:0.1
-secretName: randoli-sre-agent-secret
-databaseSecretName: randoli-agent-db
-debug: 'False'
-flightSqlUrl: grpc+tcp://randoli-agent:31337
-prometheusUrl: http://randoli-prometheus:80
-region: us-east-1
-traceLoopBaseUrl: http://randoli-otel-collector:4318
-dailyBudgetUsd: '50'
+  # -- Umbrella-chart-wide imagePullSecrets applied to the MCP server pods.
+  imagePullSecrets: []
+  # -- Umbrella-chart-wide extra labels/annotations, merged under the per-server ones.
+  labels: {}
+  annotations: {}
+  # -- Set by the umbrella chart on OpenShift; disables the Kubernetes MCP server.
+  openshift:
+    enabled: false
+
+
+models:
+  # Root cause analysis
+  RCA_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RCA_INVESTIGATOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RCA_ITERATION_FINDING_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RCA_POST_PROCESSOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RCA_TOOL_OUTPUT_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  RCA_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+
+  # Runbook execution
+  RUNBOOK_TICKETING_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RUNBOOK_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RUNBOOK_EXECUTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RUNBOOK_GITHUB_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RUNBOOK_ITERATION_FINDING_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RUNBOOK_POST_PROCESSOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RUNBOOK_TOOL_OUTPUT_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  RUNBOOK_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+
+  # Periodic (scheduled) runbook
+  PERIODIC_RUNBOOK_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  PERIODIC_RUNBOOK_EXECUTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  PERIODIC_RUNBOOK_GITHUB_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  PERIODIC_RUNBOOK_ITERATION_FINDING_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  PERIODIC_RUNBOOK_POST_PROCESSOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  PERIODIC_RUNBOOK_TICKETING_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  PERIODIC_RUNBOOK_TOOL_OUTPUT_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  PERIODIC_RUNBOOK_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+
+  RUNBOOK_VALIDATION_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RUNBOOK_VALIDATION_EXECUTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RUNBOOK_VALIDATION_GITHUB_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RUNBOOK_VALIDATION_ITERATION_FINDING_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RUNBOOK_VALIDATION_POST_PROCESSOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RUNBOOK_VALIDATION_TICKETING_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RUNBOOK_VALIDATION_TOOL_OUTPUT_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  RUNBOOK_VALIDATION_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+
+  # Interactive SRE chat
+  SRE_CHAT_TICKETING_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  SRE_CHAT_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  SRE_CHAT_CONVERSATION_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  SRE_CHAT_EXECUTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  SRE_CHAT_GITHUB_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  SRE_CHAT_ITERATION_FINDING_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  SRE_CHAT_POST_PROCESSOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  SRE_CHAT_TOOL_OUTPUT_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  SRE_CHAT_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  SRE_CHAT_TITLE_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+
+  # MCP tool-calling agent
+  MCP_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  MCP_ITERATION_FINDING_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  MCP_POST_PROCESSOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  MCP_TOOL_CALLING_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  MCP_TOOL_OUTPUT_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  MCP_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  

@@ -4,27 +4,30 @@ metadata:
   name: randoli-sre-agent
   namespace: {{ .Release.Namespace }}
   labels:
-    app: randoli-sre-agent
+    {{- include "selectorLabels" . | nindent 4 }}
+    {{- include "labels" . | nindent 4 }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: randoli-sre-agent
+      {{- include "selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        app: randoli-sre-agent
-      {{- if .Values.annotations }}
+        {{- include "selectorLabels" . | nindent 8 }}
+        {{- include "labels" . | nindent 8 }}
       annotations:
-        {{- with .Values.annotations }}
-        {{- toYaml . | nindent 8 }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if .Values.annotations }}
+          {{- with .Values.annotations }}
+          {{- toYaml . | nindent 8 }}
         {{- end }}
       {{- end }}        
     spec:
       serviceAccountName: randoli-sre-agent
       containers:
         - name: agent
-          image: {{ $.Values.image }}
+          image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag | default $.Chart.AppVersion }}"
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
@@ -32,24 +35,35 @@ spec:
             - name: FLIGHTSQL_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ $.Values.databaseSecretName }}
+                  name: {{ $.Values.dataPlane.databaseSecretName }}
                   key: password
             - name: FLIGHTSQL_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: {{ $.Values.databaseSecretName }}
+                  name: {{ $.Values.dataPlane.databaseSecretName }}
                   key: username
           envFrom:
             - configMapRef:
                 name: randoli-sre-agent-config
             - secretRef:
-                name: randoli-sre-agent-secret
+                name: {{ $.Values.llm.credentialsSecretName }}
+          # Model pricing. config.py reads /etc/agentic-ai/models.yaml by default and builds the set
+          # of usable models from it; without this mount the pod starts but every LLM call fails with
+          # "model_id ... is not a supported model for provider".
+          volumeMounts:
+            - name: model-pricing
+              mountPath: /etc/agentic-ai
+              readOnly: true
           resources:
             limits:
               memory: 1Gi
             requests:
               cpu: 10m
               memory: 382Mi
+      volumes:
+        - name: model-pricing
+          configMap:
+            name: randoli-sre-agent-models
       {{- if or .Values.tolerations .Values.global.tolerations }}
       tolerations:
         {{- with .Values.tolerations }}
@@ -76,4 +90,4 @@ spec:
         {{- with .Values.global.affinity }}
         {{- toYaml . | nindent 8 }}
         {{- end }} 
-      {{- end }}    
+      {{- end }}
