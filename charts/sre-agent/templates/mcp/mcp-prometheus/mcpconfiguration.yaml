@@ -28,13 +28,13 @@ spec:
   type: prometheus
   transport: streamable_http
   url: http://randoli-mcp-server-prometheus.{{ .Release.Namespace }}.svc:{{ .Values.mcpServers.prometheus.port }}/mcp
-  allowedTools:
-    - query
-    - range_query
-    - label_names
-    - label_values
-    - series
-    - metric_metadata
+  tools:
+    query:           read
+    range_query:     read
+    label_names:     read
+    label_values:    read
+    series:          read
+    metric_metadata: read
   prompt: |
     ## Prometheus server notes
     Scope: metrics this cluster's Prometheus scrapes, within its retention. Read-only.

@@ -33,6 +33,8 @@ logLevel: 'INFO'
 # analysis — investigation scope, LLM budget, and reasoning limits
 # ----------------------------------------------------------------------------
 analysis:
+  credentialKeyPattern: '(?i)(password|passwd|token|secret|apikey|api_key|private_key|privatekey|credential|connection_?string)'
+
   # -- Namespaces the agent may analyze, as a comma-separated list.
   # REQUIRED: replace the placeholder. Escape commas as `\,` with --set.
   enabledNamespaces: 'namespace1,namespace2'
@@ -86,6 +88,7 @@ sreChat:
   # -- How many past finished chats about the SAME incident to load at intake.
   incidentHistoryCount: '5'
   titleMaxChars: '80'
+  titleTimeoutSeconds: '20'
   maxRunningTurns: '30'
   maxWaitingTurns: '64'
   waitTimeoutSeconds: '30'
@@ -94,7 +97,8 @@ sreChat:
 # llm — LLM backend configuration (AWS Bedrock)
 # ----------------------------------------------------------------------------
 llm:
-  # -- LLM provider. Currently only 'aws' (AWS Bedrock) is supported.
+  # -- LLM provider: aws, anthropic, openai, azure_openai, vertex, azure_anthropic,
+  # azure_meta, azure_mistral or azure_deepseek. See the readme for what each one reads.
   provider: aws
 
   # -- AWS region used for Bedrock calls.
@@ -105,6 +109,16 @@ llm:
 
   # -- How many times a timed-out LLM call is retried before the run stops.
   callRetries: '2'
+
+  readTimeoutSeconds: '240'
+
+  sideReadTimeoutSeconds: '60'
+
+  connectTimeoutSeconds: '10'
+
+  keepWarmSeconds: '240'
+
+  streaming: 'true'
 
   # -- Prompt cache lifetime. '1h' keeps the cached prefix warm across a whole investigation;
   # empty uses the provider's 5-minute default. '1h' costs more to write and far less to re-read.
@@ -384,14 +398,14 @@ models:
   # Interactive SRE chat
   SRE_CHAT_TICKETING_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   SRE_CHAT_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  SRE_CHAT_CONVERSATION_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
+  SRE_CHAT_CONVERSATION_SUMMARIZER_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   SRE_CHAT_EXECUTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   SRE_CHAT_GITHUB_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   SRE_CHAT_ITERATION_FINDING_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   SRE_CHAT_POST_PROCESSOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  SRE_CHAT_TITLE_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   SRE_CHAT_TOOL_OUTPUT_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
   SRE_CHAT_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  SRE_CHAT_TITLE_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
 
   # MCP tool-calling agent
   MCP_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0

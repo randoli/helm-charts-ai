@@ -28,14 +28,14 @@ spec:
   type: tempo
   transport: streamable_http
   url: {{ tpl .Values.observability.tempoUrl . }}/api/mcp
-  allowedTools:
-    - traceql-search
-    - traceql-metrics-instant
-    - traceql-metrics-range
-    - get-trace
-    - get-attribute-names
-    - get-attribute-values
-    - docs-traceql
+  tools:
+    traceql-search:          read
+    traceql-metrics-instant: read
+    traceql-metrics-range:   read
+    get-trace:               read
+    get-attribute-names:     read
+    get-attribute-values:    read
+    docs-traceql:            read
   prompt: |
     ## Tempo server notes
     Scope: traces stored in this cluster's Tempo, within its retention. Read-only.
