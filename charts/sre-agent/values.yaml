@@ -110,6 +110,8 @@ llm:
   # -- How many times a timed-out LLM call is retried before the run stops.
   callRetries: '2'
 
+  firstTokenRetries: '1'
+
   readTimeoutSeconds: '240'
 
   sideReadTimeoutSeconds: '60'
