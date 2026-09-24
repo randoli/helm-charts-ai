@@ -54,6 +54,11 @@ data:
   SRE_CHAT_MAX_CLARIFICATION_ROUNDS: '{{ .Values.sreChat.maxClarificationRounds }}'
   LLM_CALL_TIMEOUT_S: '{{ .Values.llm.callTimeoutSeconds }}'
   LLM_CALL_RETRIES: '{{ .Values.llm.callRetries }}'
+  LLM_READ_TIMEOUT_S: '{{ .Values.llm.readTimeoutSeconds }}'
+  LLM_SIDE_READ_TIMEOUT_S: '{{ .Values.llm.sideReadTimeoutSeconds }}'
+  LLM_CONNECT_TIMEOUT_S: '{{ .Values.llm.connectTimeoutSeconds }}'
+  LLM_KEEP_WARM_S: '{{ .Values.llm.keepWarmSeconds }}'
+  LLM_STREAMING: '{{ .Values.llm.streaming }}'
   SRE_CHAT_HISTORY_COUNT: '{{ .Values.sreChat.historyCount }}'
   SRE_CHAT_INCIDENT_HISTORY_COUNT: '{{ .Values.sreChat.incidentHistoryCount }}'
 
@@ -64,7 +69,9 @@ data:
   # '1h' keeps the cached prompt prefix warm across a whole run. Empty means the 5-minute default.
   PROMPT_CACHE_TTL: '{{ .Values.llm.promptCacheTtl }}'
 
+  CREDENTIAL_KEY_PATTERN: '{{ .Values.analysis.credentialKeyPattern }}'
   SRE_CHAT_TITLE_MAX_CHARS: '{{ .Values.sreChat.titleMaxChars }}'
+  SRE_CHAT_TITLE_TIMEOUT_S: '{{ .Values.sreChat.titleTimeoutSeconds }}'
   SRE_CHAT_MAX_RUNNING_TURNS: '{{ .Values.sreChat.maxRunningTurns }}'
   SRE_CHAT_MAX_WAITING_TURNS: '{{ .Values.sreChat.maxWaitingTurns }}'
   SRE_CHAT_WAIT_TIMEOUT_S: '{{ .Values.sreChat.waitTimeoutSeconds }}'
