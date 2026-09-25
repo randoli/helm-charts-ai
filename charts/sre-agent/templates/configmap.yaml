@@ -54,6 +54,7 @@ data:
   SRE_CHAT_MAX_CLARIFICATION_ROUNDS: '{{ .Values.sreChat.maxClarificationRounds }}'
   LLM_CALL_TIMEOUT_S: '{{ .Values.llm.callTimeoutSeconds }}'
   LLM_CALL_RETRIES: '{{ .Values.llm.callRetries }}'
+  LLM_FIRST_TOKEN_RETRIES: '{{ .Values.llm.firstTokenRetries }}'
   LLM_READ_TIMEOUT_S: '{{ .Values.llm.readTimeoutSeconds }}'
   LLM_SIDE_READ_TIMEOUT_S: '{{ .Values.llm.sideReadTimeoutSeconds }}'
   LLM_CONNECT_TIMEOUT_S: '{{ .Values.llm.connectTimeoutSeconds }}'
