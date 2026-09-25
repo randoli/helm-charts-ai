@@ -69,7 +69,7 @@ spec:
         - name: PORT
           value: {{ .Values.mcpServers.loki.port | quote }}
         - name: LOKI_URL
-          value: {{ .Values.mcpServers.loki.lokiUrl | default .Values.observability.lokiUrl | quote }}
+          value: {{ tpl (.Values.mcpServers.loki.lokiUrl | default .Values.observability.lokiUrl) . | quote }}
         {{- if .Values.mcpServers.loki.orgId }}
         - name: LOKI_ORG_ID
           value: {{ .Values.mcpServers.loki.orgId | quote }}

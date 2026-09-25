@@ -27,10 +27,10 @@ spec:
   type: loki
   transport: streamable_http
   url: http://randoli-mcp-server-loki.{{ .Release.Namespace }}.svc:{{ .Values.mcpServers.loki.port }}/stream
-  allowedTools:
-    - loki_query
-    - loki_label_names
-    - loki_label_values
+  tools:
+    loki_query:        read
+    loki_label_names:  read
+    loki_label_values: read
   prompt: |
     ## Loki server notes
     Scope: log lines stored in this cluster's Loki, within its retention. Read-only.
