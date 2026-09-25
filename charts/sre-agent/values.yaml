@@ -63,14 +63,16 @@ analysis:
   # -- What one LLM call claims against the daily budget before it runs, in USD. The claim is
   # rewritten to the real cost once the call returns. Raising it refuses calls sooner near the
   # cap; lowering it lets a burst overshoot by more.
-  budgetCallEstimateUsd: '1'
+  budgetCallEstimateUsd: '0.3'
 
   # -- How many tool calls run at once per iteration. Bounds concurrency only: every call the
   # model asks for still runs, a wide fan-out just queues.
   toolConcurrency: '8'
   toolTransientRetries: '2'
+  summarizerMaxTokens: '1500'
   kubernetesOperationTimeoutSeconds: '30'
   budgetReserveWaitSeconds: '180'
+  budgetReserveWaitChatSeconds: '15'
   budgetReprobeSeconds: '60'
   budgetSweepIntervalSeconds: '600'
 
@@ -87,7 +89,7 @@ sreChat:
   historyCount: '30'
   # -- How many past finished chats about the SAME incident to load at intake.
   incidentHistoryCount: '5'
-  titleMaxChars: '80'
+  titleMaxChars: '1000'
   titleTimeoutSeconds: '20'
   maxRunningTurns: '30'
   maxWaitingTurns: '64'
