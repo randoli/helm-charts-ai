@@ -79,6 +79,8 @@ data:
   TOOL_TRANSIENT_RETRIES: '{{ .Values.analysis.toolTransientRetries }}'
   K8S_OPERATION_TIMEOUT_S: '{{ .Values.analysis.kubernetesOperationTimeoutSeconds }}'
   BUDGET_RESERVE_WAIT_S: '{{ .Values.analysis.budgetReserveWaitSeconds }}'
+  BUDGET_RESERVE_WAIT_CHAT_S: '{{ .Values.analysis.budgetReserveWaitChatSeconds }}'
+  TOOL_OUTPUT_SUMMARIZER_MAX_TOKENS: '{{ .Values.analysis.summarizerMaxTokens }}'
   BUDGET_REPROBE_S: '{{ .Values.analysis.budgetReprobeSeconds }}'
   BUDGET_SWEEP_INTERVAL_S: '{{ .Values.analysis.budgetSweepIntervalSeconds }}'
   LOG_LOKI_TIMEOUT: '{{ .Values.observability.lokiTimeoutSeconds }}'
