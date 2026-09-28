@@ -92,5 +92,5 @@ spec:
     - A selector without label filters can match more series than one result holds, and output past truncation_limit is cut. Workaround: add label filters, aggregate with sum by, or use topk().
     - A wide step or rate window averages away a short spike. Workaround: query a brief breach over a narrow window with a small step.
     - An instant query only sees series that reported in the last few minutes, so a pod or target that has gone looks absent. Workaround: use range_query over the time it existed.
-    - range_query prints each point as <value> @[<Unix seconds>], and converting Unix seconds to a date by hand goes wrong easily. Workaround: place a point by its difference from start_time in seconds (3600 is one hour), never by its position in the list, and check that the time you get lies between start_time and end_time.
+    - Times print as Unix seconds with the UTC time beside them: each point as <value> @[<Unix seconds> = <UTC time>], and a value that is itself a Unix time, such as kube_pod_created, kube_pod_start_time or kube_node_created, as <value> (= <UTC time>). Converting Unix seconds by hand goes wrong easily. Workaround: read times from the UTC text, and use the time conversion tool for any other conversion, comparison or difference, such as the gap between two points or a window that starts 30 days before an onset.
 {{- end }}

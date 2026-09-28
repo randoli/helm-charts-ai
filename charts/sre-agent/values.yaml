@@ -53,6 +53,19 @@ analysis:
   # -- Maximum reasoning iterations of the root-cause-analysis investigator.
   maxIterationsRCA: '25'
 
+  # -- Lowest RCA confidence (1 to 9) that still gets immediate and long-term fixes. Below it the
+  # report carries only the gaps, because a fix built on a weak chain sends people to change the
+  # wrong thing. Applies to every outcome.
+  minConfidenceForFixesRCA: '8'
+
+  # -- Rounds of read-only tool calls the review may make before it judges a draft, to read what
+  # the draft states but no result shows. 0 turns the reads off.
+  reviewToolRoundsRCA: '1'
+  reviewToolRoundsChat: '1'
+  reviewToolRoundsRunbook: '1'
+  reviewToolRoundsRunbookValidation: '1'
+  reviewToolRoundsPeriodicRunbook: '1'
+
   # -- Maximum reasoning iterations of the runbook executor. Higher than RCA because a runbook
   # both investigates AND acts.
   maxIterationsRunbook: '35'
@@ -89,6 +102,10 @@ sreChat:
   historyCount: '30'
   # -- How many past finished chats about the SAME incident to load at intake.
   incidentHistoryCount: '5'
+  # -- A question about an incident reads from this many hours before the incident's occurredAt...
+  incidentWindowBeforeHours: '3'
+  # -- ...to this many hours after it, or now if sooner.
+  incidentWindowAfterHours: '1'
   titleMaxChars: '1000'
   titleTimeoutSeconds: '20'
   maxRunningTurns: '30'
@@ -265,7 +282,7 @@ mcpServers:
     # -- Port the server listens on (rendered as PORT) and the Service port.
     port: 8000
     # -- Loki base URL (rendered as LOKI_URL). When empty, observability.lokiUrl is used.
-    lokiUrl: ""
+    lokiUrl: 'http://randoli-obs-loki-dist-query-frontend.{{ .Release.Namespace }}.svc:3100'
     # -- Loki tenant (rendered as LOKI_ORG_ID). When empty, no tenant is sent.
     orgId: ""
     auth:
@@ -329,6 +346,69 @@ mcpServers:
   # streamable HTTP MCP at the port root, no path suffix).
   opencost:
     enabled: false
+
+guardrails:
+  enabled: true
+  podDisruptionBudgets: true
+  serviceAccounts:
+    - name: mcp-server-openshift
+  workloads:
+    - name: randoli-agent
+      kind: StatefulSet
+      matchLabels:
+        app.kubernetes.io/name: randoli-agent
+        app.kubernetes.io/component: randoli-agent
+    - name: randoli-fsqld
+      kind: StatefulSet
+      matchLabels:
+        app.kubernetes.io/name: randoli-agent
+        app.kubernetes.io/component: randoli-fsqld
+    - name: randoli-sre-agent
+      kind: Deployment
+      matchLabels:
+        app: randoli-sre-agent
+    - name: randoli-tproxy
+      kind: Deployment
+      allowScale: true
+      matchLabels:
+        app.kubernetes.io/name: randoli-tproxy
+        app.kubernetes.io/component: randoli-tproxy
+    - name: randoli-mcp-server-kubernetes
+      kind: Deployment
+      matchLabels:
+        app: randoli-mcp-server-kubernetes
+    - name: randoli-mcp-server-loki
+      kind: Deployment
+      matchLabels:
+        app: randoli-mcp-server-loki
+    - name: randoli-mcp-server-prometheus
+      kind: Deployment
+      matchLabels:
+        app: randoli-mcp-server-prometheus
+    - name: mcp-server-openshift
+      kind: Deployment
+      matchLabels:
+        app: mcp-server-openshift
+    - name: mcp-server-github
+      kind: Deployment
+      matchLabels:
+        app: mcp-server-github
+    - name: mcp-server-atlassian
+      kind: Deployment
+      matchLabels:
+        app: mcp-server-atlassian
+    - name: mcp-server-argocd
+      kind: Deployment
+      matchLabels:
+        app: mcp-server-argocd
+    - name: mcp-server-strimzi
+      kind: Deployment
+      matchLabels:
+        app: mcp-server-strimzi
+    - name: mcp-server-kyverno
+      kind: Deployment
+      matchLabels:
+        app: mcp-server-kyverno
 
 # ----------------------------------------------------------------------------
 # Scheduling. Top-level keys and their `global.` counterparts are merged (both

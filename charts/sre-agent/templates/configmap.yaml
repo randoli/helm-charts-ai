@@ -26,6 +26,12 @@ data:
   OTEL_SPAN_EVENT_COUNT_LIMIT : '256'
   PROMETHEUS_URL: '{{ tpl .Values.observability.prometheusUrl . }}'
   RCA_INVESTIGATOR_MAX_ITERATIONS : '{{ .Values.analysis.maxIterationsRCA }}'
+  RCA_MIN_CONFIDENCE_FOR_FIXES : '{{ .Values.analysis.minConfidenceForFixesRCA }}'
+  RCA_REVIEW_TOOL_ROUNDS : '{{ .Values.analysis.reviewToolRoundsRCA }}'
+  SRE_CHAT_REVIEW_TOOL_ROUNDS : '{{ .Values.analysis.reviewToolRoundsChat }}'
+  RUNBOOK_REVIEW_TOOL_ROUNDS : '{{ .Values.analysis.reviewToolRoundsRunbook }}'
+  RUNBOOK_VALIDATION_REVIEW_TOOL_ROUNDS : '{{ .Values.analysis.reviewToolRoundsRunbookValidation }}'
+  PERIODIC_RUNBOOK_REVIEW_TOOL_ROUNDS : '{{ .Values.analysis.reviewToolRoundsPeriodicRunbook }}'
   # config.py reads AWS_REGION, not REGION. The secret can also carry AWS_REGION;
   # whichever the secret sets wins, since envFrom applies the secret after this map.
   AWS_REGION: '{{ .Values.llm.region }}'
@@ -62,6 +68,8 @@ data:
   LLM_STREAMING: '{{ .Values.llm.streaming }}'
   SRE_CHAT_HISTORY_COUNT: '{{ .Values.sreChat.historyCount }}'
   SRE_CHAT_INCIDENT_HISTORY_COUNT: '{{ .Values.sreChat.incidentHistoryCount }}'
+  SRE_CHAT_INCIDENT_WINDOW_BEFORE_HOURS: '{{ .Values.sreChat.incidentWindowBeforeHours }}'
+  SRE_CHAT_INCIDENT_WINDOW_AFTER_HOURS: '{{ .Values.sreChat.incidentWindowAfterHours }}'
 
   # How many tool calls run at once per iteration. There is no cap on how MANY a turn may
   # contain; this bounds only how many are in flight, so a wide fan-out queues.
