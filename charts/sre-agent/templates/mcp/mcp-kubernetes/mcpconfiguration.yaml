@@ -26,23 +26,23 @@ spec:
   type: kubernetes
   transport: streamable_http
   url: http://randoli-mcp-server-kubernetes.{{ .Release.Namespace }}.svc:{{ .Values.mcpServers.kubernetes.port }}/mcp
-  allowedTools:
-    - pods_list
-    - pods_list_in_namespace
-    - pods_get
-    - pods_log
-    - pods_top
-    - resources_get
-    - resources_list
-    - events_list
-    - namespaces_list
-    - projects_list
-    - nodes_top
-    - nodes_stats_summary
-    - nodes_log
-    - tekton_pipelinerun_logs
-    - pods_delete
-    - resources_scale
+  tools:
+    pods_list:               read
+    pods_list_in_namespace:  read
+    pods_get:                read
+    pods_log:                read
+    pods_top:                read
+    resources_get:           read
+    resources_list:          read
+    events_list:             read
+    namespaces_list:         read
+    projects_list:           read
+    nodes_top:               read
+    nodes_stats_summary:     read
+    nodes_log:               read
+    tekton_pipelinerun_logs: read
+    pods_delete:             mutate
+    resources_scale:         mutate
   prompt: |
     ## Kubernetes server notes
     Scope: the live state of this cluster through the Kubernetes API, meaning every resource kind including custom resources, recent events, container logs and current CPU and memory; and two kinds of change: deleting a pod and scaling a workload.
@@ -55,6 +55,7 @@ spec:
     - list namespaces and projects: namespaces_list, projects_list
     - read current CPU and memory of pods and nodes: pods_top, nodes_top, nodes_stats_summary
     - read node logs: nodes_log
+    - read a node's own object, which is cluster-scoped and so takes a name with no namespace: resources_list and resources_get with apiVersion v1 and kind Node
     - read Tekton pipeline run logs: tekton_pipelinerun_logs
     - delete a pod, which its controller replaces with a pod under a new name: pods_delete
     - set the replica count of a Deployment or StatefulSet: resources_scale
@@ -70,6 +71,10 @@ spec:
     Identifiers:
     - Pods of a Deployment are named <workload>-<replica set hash>-<suffix>, pods of a StatefulSet <workload>-<ordinal>, and pods of a Job <job>-<suffix>. A pod's name changes each time it is replaced, so read the current names before a change that names a pod.
     - A pod's OpenTelemetry service name is in its annotation resource.opentelemetry.io/service.name. That name keys request metrics, traces and service-level logs, and it often differs from the workload name.
+    - The repository and commit behind a workload are carried as annotations: ai.randoli.io/git-repo, whose value looks like github.com/<owner>/<repository>, and ai.randoli.io/git-revision, the commit that built what is running. Four places carry them, and which one does is up to whoever deploys the workload, so read them in this order and stop at the first pair you find: the pod itself with pods_get or pods_list_in_namespace; its Service with resources_get, apiVersion v1 and kind Service; its Deployment or StatefulSet with resources_get and apiVersion apps/v1; and, when none of them carries a pair, the container image and its tag or digest from spec.containers[].image, which the repository server's notes say how to map.
+    - A pod's pair is the most precise, because its revision names the commit that pod is running, while a pair on the Service or the Deployment names the repository for the workload as a whole and may be older than the pod. Only annotations in a Deployment's pod template reach its pods, so a Deployment can carry a pair its pods do not, and a pod can carry one its Deployment does not.
+    - A workload with no such pair is normal, not an error, and most workloads here have none. Say which objects you read and that none carried it, give the image and tag you did find, and leave finding the repository to the repository server, whose notes say how to look for one and how to confirm it belongs to this service.
+    - A pod names the node it runs on in spec.nodeName, and the pods on a node come from pods_list with the field selector spec.nodeName=<node>. A node has no namespace, so resources_get for kind Node takes its name alone, and asking for one inside a namespace finds nothing.
     - metadata.ownerReferences leads from a pod to its ReplicaSet, StatefulSet, DaemonSet or Job, and from a ReplicaSet to its Deployment. Each ReplicaSet carries the deployment.kubernetes.io/revision annotation, and each ControllerRevision a revision number.
     Environment:
     - Field selectors: most kinds accept only metadata.name and metadata.namespace; pods also accept status.phase and spec.nodeName; events accept involvedObject.kind, involvedObject.name, reason and type.
@@ -77,13 +82,19 @@ spec:
     - An error like no matches for kind <Kind> in version <group>/<version> means the kind is not installed, or that version of it is not served. Read its CustomResourceDefinition (resources_get with apiVersion apiextensions.k8s.io/v1, kind CustomResourceDefinition, name <plural>.<group>) to tell which, and list again with a version it serves.
     - A resource that an operator, a Helm release or a GitOps application manages can be set back by that manager after a direct change. Its ownerReferences, its app.kubernetes.io/managed-by label and its GitOps annotations show the manager, and a lasting change goes through the managing resource.
     - Nodes in spot or preemptible pools, labelled for example kubernetes.azure.com/scalesetpriority=spot or cloud.google.com/gke-spot=true, are replaced often, and their pods start again on other nodes.
+    - What a Node object holds: status.conditions, where Ready says whether the kubelet is reporting and MemoryPressure, DiskPressure and PIDPressure say what the kubelet is short of; status.capacity and status.allocatable, which is capacity minus what the system reserves and is what pods are scheduled against; spec.taints and spec.unschedulable, which say why a pod may not land there; status.nodeInfo for the kubelet, container runtime, kernel and OS versions; and the labels that name its pool, instance type and zone.
+    - nodes_top gives a node's current CPU and memory the way pods_top does for pods. nodes_stats_summary is the kubelet's own report for that node, and carries what the Node object does not: filesystem and image filesystem use, memory working set per pod, and network counters.
+    - Events about a node, such as it going NotReady, being drained, preempted or its pods evicted, come from events_list with the field selector involvedObject.kind=Node, cluster-wide rather than in a namespace.
     Going deeper:
     - why a pod is new: its metadata.creationTimestamp and spec.nodeName against the node's creationTimestamp, the owner's revisions, and eviction or preemption events while they last
     - what a crashed container printed: pods_log with previous set, starting with a small tail
+    - which repository and commit built what is running: the ai.randoli.io/git-repo and ai.randoli.io/git-revision annotations, on the pod first and then on its Service and its Deployment, with the image tag or digest as the fallback
     - what changed in a rollout: the pod template of the current ReplicaSet or ControllerRevision against the previous one
+    - why a pod was evicted, killed or will not schedule: the node from spec.nodeName, then its conditions, allocatable and taints from its Node object, then nodes_top for what it is using now, and nodes_stats_summary when the question is disk or per-pod memory
     - whether a change took effect: read the resource or its pods again after the change, rather than relying on the change call's own output
     Limits:
     - A long container log comes back summarized or cut. Workaround: set a smaller tail, or search that pod's lines with a line filter on the log server.
+    - nodes_stats_summary and nodes_log reach the node's kubelet through the API server, and nodes_top reads the metrics API. Any of them can be refused or time out when the kubelet is unreachable, the node is NotReady, or a managed platform closes that route. That is the read failing, not the node being healthy: name the node and say the figure was not read.
     - A call can time out while the server is busy. Workaround: read the resource first when the call was a change, because the change may have applied before the timeout, then run it again only if it did not.
     - A call the service account's permissions do not allow fails with forbidden. The permissions section below lists what they allow.
 {{- end }}
