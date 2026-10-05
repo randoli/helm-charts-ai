@@ -40,6 +40,7 @@ spec:
     nodes_stats_summary:     read
     nodes_log:               read
     tekton_pipelinerun_logs: read
+    helm_list:               read
   prompt: |
     ## Kubernetes server notes
     Scope: the live state of this cluster through the Kubernetes API: every resource kind including custom resources, recent events, container logs, and current CPU and memory. Read-only.
@@ -54,8 +55,11 @@ spec:
     - read node logs: nodes_log
     - read a node's own object, which is cluster-scoped and so takes a name with no namespace: resources_list and resources_get with apiVersion v1 and kind Node
     - read Tekton pipeline run logs: tekton_pipelinerun_logs
+    - list Helm releases in a namespace, or in every namespace with all_namespaces set, each with its chart, chart version, app version, revision, status and last deploy time: helm_list
     Cannot:
-    - run a command inside a container, start a pod, or change any resource
+    - run a command inside a container, start a pod, or change any resource, including installing, upgrading, rolling back or uninstalling a Helm release
+    - show a Helm release's values or rendered manifests: helm_list gives only its chart, versions, revision, status and time, and the values in its Secret are hidden like any other
+    - list charts that a GitOps tool rendered and applied itself, such as an Argo CD Application with a Helm source: those leave no Helm release, so helm_list does not show them, and the Application's status does
     - read state that only a running process or its files hold, such as topics, consumer groups, replication or users inside a broker or database; their custom resources and metrics show part of it
     - show Secret values through resources_get or resources_list: the platform replaces each value with a placeholder, so you can confirm that a Secret and its keys exist, and a hidden value is not a missing or empty one
     - show events older than a few hours, pods that were deleted, or nodes that were removed; their names remain in metric and log history
@@ -86,8 +90,10 @@ spec:
     - what changed in a rollout: the pod template of the current ReplicaSet or ControllerRevision against the previous one
     - why a pod was evicted, killed or will not schedule: the node from spec.nodeName, then its conditions, allocatable and taints from its Node object, then nodes_top for what it is using now, and nodes_stats_summary when the question is disk or per-pod memory
     - the state of a GitOps-managed object when the GitOps server cannot be reached: its Application's status (sync, health, history)
+    - which chart and version a workload was deployed with, and whether its last Helm operation failed: the meta.helm.sh/release-name and meta.helm.sh/release-namespace annotations on the workload name its release, and helm_list for that namespace gives the release's chart version and status
     Limits:
-    - A long container log comes back summarized or cut. Workaround: set a smaller tail, or search that pod's lines with a line filter on the log server.
+    - A long container log can be too large to return whole; it then comes back saved to a file, with a preview of its start. Workaround: set a smaller tail, or search that pod's lines with a line filter on the log server.
     - nodes_stats_summary and nodes_log reach the node's kubelet through the API server, and nodes_top reads the metrics API. Any of them can be refused or time out when the kubelet is unreachable, the node is NotReady, or a managed platform closes that route. That is the read failing, not the node being healthy: name the node and say the figure was not read.
+    - helm_list returns only the latest revision of each release, and only when that revision is deployed or failed, so a release stuck in pending-install, pending-upgrade or pending-rollback does not appear. Workaround: each revision is a Secret of type helm.sh/release.v1 labelled owner=helm, name=<release>, status=<status> and version=<revision>, so resources_list for kind Secret with the label selector owner=helm,name=<release> lists every revision with its status
     - A call can time out while the server is busy. Workaround: run it again.
 {{- end }}

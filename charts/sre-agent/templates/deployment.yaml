@@ -54,6 +54,8 @@ spec:
             - name: model-pricing
               mountPath: /etc/agentic-ai
               readOnly: true
+            - name: tool-results
+              mountPath: /var/lib/sre-agent/tool_results
           resources:
             limits:
               memory: 1Gi
@@ -64,6 +66,9 @@ spec:
         - name: model-pricing
           configMap:
             name: randoli-sre-agent-models
+        - name: tool-results
+          emptyDir:
+            sizeLimit: {{ .Values.analysis.toolResultStorageSizeLimit }}
       {{- if or .Values.tolerations .Values.global.tolerations }}
       tolerations:
         {{- with .Values.tolerations }}

@@ -1,0 +1,169 @@
+{{- if include "guardrails.active" . }}
+{{- $users := list }}
+{{- range (include "guardrails.usernames" . | fromJsonArray) }}
+{{- $users = append $users (printf "'%s'" .) }}
+{{- end }}
+{{- $resources := dict "Deployment" "deployments" "StatefulSet" "statefulsets" }}
+{{- $pods := list }}
+{{- $workloads := list }}
+{{- $fixed := list }}
+{{- $minOne := list }}
+{{- range .Values.guardrails.workloads }}
+{{- $ns := .namespace | default $.Release.Namespace }}
+{{- $labels := list (printf "request.namespace == '%s'" $ns) "has(oldObject.metadata.labels)" }}
+{{- range $key, $value := .matchLabels }}
+{{- $labels = append $labels (printf "'%s' in oldObject.metadata.labels && oldObject.metadata.labels['%s'] == '%s'" $key $key $value) }}
+{{- end }}
+{{- $pods = append $pods (printf "(%s)" (join " && " $labels)) }}
+{{- $resource := get $resources (.kind | default "") }}
+{{- if $resource }}
+{{- $match := printf "(request.namespace == '%s' && request.resource.resource == '%s' && request.name == '%s')" $ns $resource .name }}
+{{- $workloads = append $workloads $match }}
+{{- if .allowScale }}
+{{- $minOne = append $minOne $match }}
+{{- else }}
+{{- $fixed = append $fixed $match }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- $matchUsers := printf "request.userInfo.username in [%s]" (join ", " $users) }}
+{{- if $pods }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: randoli-sre-agent-guardrail-pods-{{ .Release.Namespace }}
+  labels:
+    {{- include "labels" . | nindent 4 }}
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups: [""]
+      apiVersions: ["v1"]
+      operations: ["DELETE"]
+      resources: ["pods"]
+    - apiGroups: ["apps"]
+      apiVersions: ["v1"]
+      operations: ["DELETE"]
+      resources: ["replicasets"]
+  matchConditions:
+  - name: sre-agent-service-accounts
+    expression: {{ $matchUsers | quote }}
+  validations:
+  - expression: |-
+      !(
+        {{ join "\n        || " $pods }}
+      )
+    messageExpression: "request.resource.resource + ' ' + request.name + ' in namespace ' + request.namespace + ' belongs to a workload the SRE agent depends on, so the SRE agent may not delete it'"
+    reason: Forbidden
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: randoli-sre-agent-guardrail-pods-{{ .Release.Namespace }}
+  labels:
+    {{- include "labels" . | nindent 4 }}
+spec:
+  policyName: randoli-sre-agent-guardrail-pods-{{ .Release.Namespace }}
+  validationActions: ["Deny"]
+{{- end }}
+{{- if $workloads }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: randoli-sre-agent-guardrail-workloads-{{ .Release.Namespace }}
+  labels:
+    {{- include "labels" . | nindent 4 }}
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups: ["apps"]
+      apiVersions: ["v1"]
+      operations: ["UPDATE", "DELETE"]
+      resources: ["deployments", "statefulsets"]
+  matchConditions:
+  - name: sre-agent-service-accounts
+    expression: {{ $matchUsers | quote }}
+  validations:
+  - expression: |-
+      request.operation != 'DELETE' || !(
+        {{ join "\n        || " $workloads }}
+      )
+    messageExpression: "request.resource.resource + ' ' + request.name + ' in namespace ' + request.namespace + ' is a workload the SRE agent depends on, so the SRE agent may not delete it'"
+    reason: Forbidden
+  {{- if $fixed }}
+  - expression: |-
+      request.operation != 'UPDATE' || object.spec == oldObject.spec || !(
+        {{ join "\n        || " $fixed }}
+      )
+    messageExpression: "request.resource.resource + ' ' + request.name + ' in namespace ' + request.namespace + ' is a workload the SRE agent depends on, so the SRE agent may not restart it or change its replica count'"
+    reason: Forbidden
+  {{- end }}
+  {{- if $minOne }}
+  - expression: |-
+      request.operation != 'UPDATE' || !(
+        {{ join "\n        || " $minOne }}
+      ) || (object.spec.template == oldObject.spec.template && has(object.spec.replicas) && object.spec.replicas >= 1)
+    messageExpression: "request.resource.resource + ' ' + request.name + ' in namespace ' + request.namespace + ' is a workload the SRE agent depends on, so the SRE agent may not restart it or scale it below one replica'"
+    reason: Forbidden
+  {{- end }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: randoli-sre-agent-guardrail-workloads-{{ .Release.Namespace }}
+  labels:
+    {{- include "labels" . | nindent 4 }}
+spec:
+  policyName: randoli-sre-agent-guardrail-workloads-{{ .Release.Namespace }}
+  validationActions: ["Deny"]
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: randoli-sre-agent-guardrail-scale-{{ .Release.Namespace }}
+  labels:
+    {{- include "labels" . | nindent 4 }}
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups: ["apps"]
+      apiVersions: ["v1"]
+      operations: ["UPDATE"]
+      resources: ["deployments/scale", "statefulsets/scale"]
+  matchConditions:
+  - name: sre-agent-service-accounts
+    expression: {{ $matchUsers | quote }}
+  validations:
+  {{- if $fixed }}
+  - expression: |-
+      !(
+        {{ join "\n        || " $fixed }}
+      )
+    messageExpression: "request.resource.resource + ' ' + request.name + ' in namespace ' + request.namespace + ' is a workload the SRE agent depends on, so the SRE agent may not change its replica count'"
+    reason: Forbidden
+  {{- end }}
+  {{- if $minOne }}
+  - expression: |-
+      !(
+        {{ join "\n        || " $minOne }}
+      ) || (has(object.spec.replicas) && object.spec.replicas >= 1)
+    messageExpression: "request.resource.resource + ' ' + request.name + ' in namespace ' + request.namespace + ' is a workload the SRE agent depends on, so the SRE agent may not scale it below one replica'"
+    reason: Forbidden
+  {{- end }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: randoli-sre-agent-guardrail-scale-{{ .Release.Namespace }}
+  labels:
+    {{- include "labels" . | nindent 4 }}
+spec:
+  policyName: randoli-sre-agent-guardrail-scale-{{ .Release.Namespace }}
+  validationActions: ["Deny"]
+{{- end }}
+{{- end }}
