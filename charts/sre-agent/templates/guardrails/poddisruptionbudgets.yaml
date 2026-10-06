@@ -1,0 +1,18 @@
+{{- if and .Values.guardrails.enabled .Values.guardrails.podDisruptionBudgets }}
+{{- range .Values.guardrails.workloads }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .name }}-guardrail
+  namespace: {{ .namespace | default $.Release.Namespace }}
+  labels:
+    {{- include "labels" $ | nindent 4 }}
+spec:
+  minAvailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      {{- toYaml .matchLabels | nindent 6 }}
+{{- end }}
+{{- end }}

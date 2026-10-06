@@ -38,6 +38,31 @@ spec:
                   additionalProperties:
                     type: string
                 allowedTools:
+                  description: >-
+                    Deprecated, superseded by tools. The tool names this server may expose to the
+                    agents it is enabled for. Read only when tools is absent, and then no tool of
+                    this server counts as one that changes a system.
+                  type: array
+                  items:
+                    type: string
+                tools:
+                  description: >-
+                    The tools this server may expose, each with what it does: read for a tool that
+                    only reads, mutate for a tool that changes a system. The keys are the allow
+                    list, so a tool that is not named here is not given to any agent. A mutate tool
+                    is refused until the user approves that exact call, and read only agents are
+                    never given one.
+                  type: object
+                  additionalProperties:
+                    type: string
+                    enum: [read, mutate]
+                sensitiveTools:
+                  description: >-
+                    Tools whose output is credentials, such as a secret store read. Their values
+                    never reach the agent: key names and structure pass and every value is replaced,
+                    and output that cannot be parsed is withheld whole. Most servers need none of
+                    this, because a Secret in any payload and any credential shaped key name are
+                    already blanked for every server.
                   type: array
                   items:
                     type: string

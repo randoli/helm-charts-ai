@@ -28,13 +28,13 @@ spec:
   type: prometheus
   transport: streamable_http
   url: http://randoli-mcp-server-prometheus.{{ .Release.Namespace }}.svc:{{ .Values.mcpServers.prometheus.port }}/mcp
-  allowedTools:
-    - query
-    - range_query
-    - label_names
-    - label_values
-    - series
-    - metric_metadata
+  tools:
+    query:           read
+    range_query:     read
+    label_names:     read
+    label_values:    read
+    series:          read
+    metric_metadata: read
   prompt: |
     ## Prometheus server notes
     Scope: metrics this cluster's Prometheus scrapes, within its retention. Read-only.
@@ -67,7 +67,7 @@ spec:
     - Database connection pools in the caller: hikaricp_connections_active, _idle, _pending, _max, _timeout_total and _acquire_seconds_* (pool); db_client_connections_usage (state used or idle), db_client_connections_max, _pending_requests, _wait_time_milliseconds_* and _timeouts_total (pool_name); jdbc_connections_active and jdbc_connections_max (name); spring_data_repository_invocations_seconds_* (repository, method, exception); in Go services, db_sql_client_latency_milliseconds_* and db_sql_client_calls_total (db_operation, db_sql_status, and db_sql_error with the error text).
     - PostgreSQL servers: postgresql_backends against postgresql_connection_max, postgresql_deadlocks_total, postgresql_rollbacks_total, postgresql_database_locks, postgresql_replication_data_delay_bytes and postgresql_wal_age_seconds (postgresql_database_name, with service_name and instance for the server); per statement, db_postgresql_query_mean_exec_time_seconds, db_postgresql_query_calls_total and db_postgresql_query_exec_time_seconds_total (db, role, query); sessions, db_postgresql_blocked_sessions_total, db_postgresql_waiting_sessions_seconds_total and db_postgresql_long_running_queries_seconds.
     - Redis, from Java clients: lettuce_command_completion_seconds_* and lettuce_command_firstresponse_seconds_* (command, and remote for the Redis address).
-    - Kafka: broker health in kafka_brokers, kafka_partition_under_replicated, kafka_partition_offline, kafka_controller_active_count and kafka_request_failed_total (type); topics in kafka_topic_partitions (topic); consumer lag from Java clients in kafka_consumer_fetch_manager_records_lag_max and kafka_consumer_fetch_manager_records_lag (client_id, topic, partition) and kafka_consumer_group_lag_ratio (consumer_group_id, topic); producer errors in kafka_producer_record_error_total (topic).
+    - Kafka: broker health in kafka_brokers, kafka_partition_under_replicated, kafka_partition_offline, kafka_controller_active_count and kafka_request_failed_total (type); topics in kafka_topic_partitions (topic); consumer lag from Java clients in kafka_consumer_fetch_manager_records_lag_max and kafka_consumer_fetch_manager_records_lag (client_id, topic, partition) and kafka_consumer_group_lag_ratio (consumer_group_id, topic), while consumers using other clients, such as Node.js or Go ones, export no lag series, so the consumers of a topic or a namespace come from the workloads and their logs, and a consumer missing from these series has no lag reading rather than no lag; producer errors in kafka_producer_record_error_total (topic).
     - NATS: nats_varz_connections, nats_varz_slow_consumers, nats_varz_in_msgs and nats_varz_out_msgs; JetStream consumers in nats_consumer_num_pending, nats_consumer_num_ack_pending and nats_consumer_num_redelivered (stream_name, consumer_name).
     - JVM, only for Java services: jvm_memory_used_bytes (area heap or nonheap), jvm_gc_pause_seconds_* (action, cause), jvm_gc_overhead, jvm_threads_states_threads (state), executor_active_threads and executor_queued_tasks.
     - Platform components: certmanager_certificate_expiration_timestamp_seconds and certmanager_certificate_ready_status (name, namespace); externalsecret_status_condition and externalsecret_sync_calls_error_total (name, exported_namespace); up (job, instance) for scrape success; the telemetry pipeline in vector_component_errors_total, otelcol_receiver_refused_spans_total, otelcol_exporter_send_failed_metric_points_total, loki_request_duration_seconds_* and tempo_request_duration_seconds_*.
@@ -92,5 +92,5 @@ spec:
     - A selector without label filters can match more series than one result holds, and output past truncation_limit is cut. Workaround: add label filters, aggregate with sum by, or use topk().
     - A wide step or rate window averages away a short spike. Workaround: query a brief breach over a narrow window with a small step.
     - An instant query only sees series that reported in the last few minutes, so a pod or target that has gone looks absent. Workaround: use range_query over the time it existed.
-    - range_query prints each point as <value> @[<Unix seconds>], and converting Unix seconds to a date by hand goes wrong easily. Workaround: place a point by its difference from start_time in seconds (3600 is one hour), never by its position in the list, and check that the time you get lies between start_time and end_time.
+    - Times print as Unix seconds with the UTC time beside them: each point as <value> @[<Unix seconds> = <UTC time>], and a value that is itself a Unix time, such as kube_pod_created, kube_pod_start_time or kube_node_created, as <value> (= <UTC time>). Converting Unix seconds by hand goes wrong easily. Workaround: read times from the UTC text, and use the time conversion tool for any other conversion, comparison or difference, such as the gap between two points or a window that starts 30 days before an onset.
 {{- end }}
