@@ -262,6 +262,11 @@ models:
 Costs are USD per token. Cache writes have two rates because the price depends on the lifetime set
 by `llm.promptCacheTtl`, and which one applies is decided per call from what the provider reported.
 
+Two numbers per model size each run: `context_window`, the tokens one call may hold, and
+`max_output_tokens`, the most one reply may write. The agent compacts its history before it passes
+`analysis.contextCompactionThresholdPct` of the window, and saves a tool result to a file when it would
+take more than `analysis.toolResultMaxWindowPct` of it. A model without them gets 200,000 and 16,000.
+
 Two optional flags per model cover the things that are not about price:
 
 | Flag | Default | What it decides |
@@ -271,17 +276,20 @@ Two optional flags per model cover the things that are not about price:
 
 ### One model per role
 
-Every step of an investigation resolves its model through a key in the `models` map, so the heavy
-reasoning can use a strong model while summaries, per-iteration findings, compaction and chat titles
-use a cheap one. The key name **is** the role name, per agent: `RCA_INVESTIGATOR_MODEL`,
-`SRE_CHAT_EXECUTOR_MODEL`, `SRE_CHAT_TOOL_OUTPUT_SUMMARIZER_MODEL`, and so on. Each one becomes an
-env var of the same name.
+Each agent runs its loop on one model, named by a key in the `models` map: `RCA_INVESTIGATOR_MODEL`,
+`RUNBOOK_EXECUTOR_MODEL`, `PERIODIC_RUNBOOK_EXECUTOR_MODEL`, `RUNBOOK_VALIDATION_EXECUTOR_MODEL`,
+`SRE_CHAT_EXECUTOR_MODEL` and `MCP_TOOL_CALLING_MODEL`. Each agent also has two more keys with the
+same prefix: `<prefix>_VERDICT_EXTRACTOR_MODEL` fills in the final answer and `<prefix>_COMPACTION_MODEL`
+writes the summary when the history gets too long, for example `RCA_VERDICT_EXTRACTOR_MODEL` and
+`RCA_COMPACTION_MODEL`. Both return a fixed shape, so point them at a model that supports a forced tool
+call, such as Claude. `SRE_CHAT_TITLE_MODEL` names the chat's titles and can be a cheaper model. Each
+key becomes an env var of the same name.
 
 ```
 helm upgrade sre-agent randoli/sre-agent -n randoli-agents \
   --set llm.provider=anthropic \
   --set models.SRE_CHAT_EXECUTOR_MODEL=claude-sonnet-4-5-20250929 \
-  --set models.SRE_CHAT_TOOL_OUTPUT_SUMMARIZER_MODEL=claude-haiku-4-5-20251001
+  --set models.SRE_CHAT_TITLE_MODEL=claude-haiku-4-5-20251001
 ```
 
 Every id set there must also appear in `models.yaml` for the active provider. If one does not, the

@@ -33,14 +33,16 @@ spec:
     loki_label_values: read
   prompt: |
     ## Loki server notes
-    Scope: log lines stored in this cluster's Loki, within its retention. Read-only.
-    Use for: what a workload wrote around a time, the exact error text and when it first appeared, how often a line occurs over time and on which replicas, and the logs of pods that no longer exist. Not for: current object state, metrics or traces.
+    Scope: log lines stored in this cluster's Loki, within its retention of about 30 days. Read-only.
+    Use for: what a workload wrote around a time, the exact error text and when it first appeared, how often a line occurs and on which replicas, and the logs of pods that no longer exist. Not for: current object state, metrics or traces.
     Can:
-    - run a LogQL log query, or a metric query such as count_over_time or rate, over a window: loki_query, with start, end, limit and format
+    - run a LogQL log query over a window: loki_query, with start, end, limit and format; lines come back newest first
     - list the label names present in a window: loki_label_names
     - list one label's values in a window: loki_label_values
     Cannot:
-    - show lines older than its retention, or lines a process did not write to its container output
+    - run a metric query, such as count_over_time, rate or sum by (...) over either: every one fails on this server with "query execution failed: json: cannot unmarshal number into Go struct field LokiEntry.data.result.values of type string", while a log query on the same selector works. Count lines by reading them instead, as Going deeper shows.
+    - find a word inside log lines with loki_label_names or loki_label_values: they list labels and their values, not line content. A word needs a line filter on loki_query.
+    - show lines older than its retention, or lines a process did not write to its container output. A window that starts 29 days back returns lines and one 31 days back returns none, so the logs of pods deleted within the last 29 days are still here.
     - tell a label that does not exist, a value that matched nothing and a line filter that matched nothing apart: each returns no lines
     Identifiers:
     - The container output of every pod is stored with the labels k8s_pod_namespace, k8s_pod_name, k8s_container_name, k8s_container_image, k8s_pod_node_name and service_name, and source_type="kubernetes_logs".
@@ -49,6 +51,7 @@ spec:
     - There is no namespace, pod or severity label.
     - Loki adds detected_level (debug, info, warn, error or unknown) to each line. Lines in a format it cannot read get unknown, so a level filter misses their errors.
     - Label regex matchers are fully anchored: k8s_pod_name=~"<workload>-.*" matches pods whose names start with the workload name; use =~".*<name>.*" for part of a name.
+    - Each line carries two times: the UTC timestamp Loki stored it at, printed first on the line, and any time the application wrote inside the message, which can be in another zone or behind. Order events across pods and services by the first, and quote the second only as what the line says.
     Selectors that work here:
     - one pod, in both kinds of stream and after the pod is deleted: {k8s_pod_name="<pod>"}
     - every pod of a workload: {k8s_pod_namespace="<namespace>", k8s_pod_name=~"<workload>-.*"}
@@ -57,22 +60,25 @@ spec:
     - the records of one trace: {service_name="<otel service name>"} | trace_id="<trace id>" for OpenTelemetry records, and |= "<trace id>" for container lines that print the ID
     - errors in any format: |~ "(?i)error|exception|fatal|panic|refused|timeout" after the selector, or | detected_level=~"error|warn" for lines Loki can read
     Going deeper:
-    - when an error started: sum by (k8s_pod_name) (count_over_time({<selector>} |~ "<error text>" [5m])) from well before the incident, then the lines around the first step above zero
+    - since when an error has occurred: halve the time range instead of stepping back an hour at a time. Start with the whole retention, query its earlier half with the error's line filter and limit 1: a line back means the first occurrence is in that half, none means it is in the later half. Repeat on that half until the range is a few minutes wide, then read the lines around the first match with no line filter. About fifteen queries cover 30 days.
+    - how often a line occurs and on which pods or nodes: read the matching lines with limit up to 5000 and count them by k8s_pod_name, k8s_pod_node_name or minute from the result. When a read returns exactly its limit, it was cut: split the window and read each part.
     - what a container wrote before it stopped: its pod's lines with no line filter, in a narrow window ending at the termination time
-    - whether other replicas or other pods on the same node show the same error: the same count grouped by k8s_pod_name or k8s_pod_node_name
+    - whether other replicas or other pods on the same node show the same error: the same filter over the same window, with the selector widened to the workload or the node, and the lines grouped by pod or node
     - the other side of a failing call: the dependency's own pods over the same window, selected the same way
+    - which controller or operator last wrote an object: that controller's own pods over the window of the change, filtered for the object's name
     Reading lines for a cause (a line is evidence for the stream and time it came from, quoted with its timestamp, pod and container):
-    - Read the first occurrence, not the loudest one: count the error over a window that starts well before the incident, take the first step above zero, then read a narrow window around it including the lines just before, because the first failure usually names its cause and the later lines are its consequences. An error at the same rate before the onset is background, and saying so needs the earlier window.
-    - The shape of the count tells you what kind of event it was: a burst that stops is something that recovered and is not the cause of an ongoing failure; a rate that starts and stays marks a change; a rate that tracks traffic is load-dependent.
+    - Read the first occurrence, not the loudest one: find it as Going deeper shows, then read a narrow window around it including the lines just before, because the first failure usually names its cause and the later lines are its consequences. An error that already appeared at the same frequency before the onset is background, and saying so needs the earlier window.
+    - How the matching lines spread over time tells you what kind of event it was: a burst that stops is something that recovered and is not the cause of an ongoing failure; lines that start and keep coming mark a change; lines whose frequency tracks traffic are load-dependent.
     - Read each error for the layer that raised it. Connection refused, reset or timed out naming a host and port is the dependency or the network; a name-resolution failure is DNS or the Service, not the dependency; an authorization or authentication failure is a credential or a policy and says nothing about the dependency's health; a parse, deserialization or schema error is the data or a producer change; no space, too many open files or cannot allocate memory is the host or a limit; a panic or unhandled exception with a stack is the application's own path.
     - Database lines worth finding: statement timeout or cancelled statement, deadlock detected, lock wait timeout, unable to acquire a connection or pool exhausted, too many connections on the server side, a slow-statement line with its duration, and a failed migration at start-up. A pool error in the caller with nothing in the database's own lines points at the pool or how the caller holds connections, not at the database.
     - Message-client lines worth finding: a topic missing from metadata, leader-election or not-enough-replicas errors, repeated revoke-and-assign lines, which are a rebalance storm, and the same offset retried again and again, which is one record the consumer cannot process.
     - Separate start-up from steady state: lines before the process says it is listening or ready are start-up failures, such as missing configuration or a dependency that was not there at boot. Errors that only appear under load are capacity. For a crash, read the previous container instance's lines in a narrow window ending at its termination time, since the last lines before exit are the closest evidence.
-    - Check whether it is one replica or all of them, and whether the pods on one node share it, by counting the same filter grouped by pod and by node. One replica failing points at that instance or its node; every replica failing points at the workload or its dependency.
+    - Check whether it is one replica or all of them, and whether the pods on one node share it, by reading the same filter's lines and grouping them by pod and by node. One replica failing points at that instance or its node; every replica failing points at the workload or its dependency.
     - Before saying an error is absent, run the same selector without the line filter over the same window: lines coming back shows the stream is there and nothing matched, and no lines shows only that this selector found nothing.
+    - Before saying a pod's logs are gone, query its pod name over its lifetime: the retention covers deleted pods.
     Limits:
     - start and end default to the last hour. Workaround: pass both on every call.
-    - limit defaults to 100 lines, and the server caps the lines and series one query returns, so a busy selector over a wide window comes back cut. Workaround: count with a metric query first, then read a narrow window or add a line filter.
+    - limit defaults to 100 lines and the server refuses more than 5000 ("max entries limit per query exceeded"). A read that reaches its limit returns the newest lines of the window, so its earliest lines are missing. Workaround: raise limit up to 5000, add a line filter, or narrow the window toward the part you need.
     - A broad selector over a long window can time out. Workaround: add k8s_pod_name or k8s_container_name, or split the window.
     - The url, username, password, token and org arguments point the server at a different Loki. Workaround: leave them unset.
 {{- end }}

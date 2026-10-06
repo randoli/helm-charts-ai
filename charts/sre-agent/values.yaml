@@ -1,5 +1,5 @@
 # ============================================================================
-# Randoli SRE Agent — configuration values
+# Randoli SRE Agent: configuration values
 #
 # Install modes:
 #   * As a dependency of the randoli-agent (data plane) umbrella chart: the
@@ -30,7 +30,7 @@ annotations: {}
 logLevel: 'INFO'
 
 # ----------------------------------------------------------------------------
-# analysis — investigation scope, LLM budget, and reasoning limits
+# analysis: investigation scope, LLM budget, and reasoning limits
 # ----------------------------------------------------------------------------
 analysis:
   credentialKeyPattern: '(?i)(password|passwd|token|secret|apikey|api_key|private_key|privatekey|credential|connection_?string)'
@@ -58,20 +58,14 @@ analysis:
   # wrong thing. Applies to every outcome.
   minConfidenceForFixesRCA: '8'
 
-  # -- Rounds of read-only tool calls the review may make before it judges a draft, to read what
-  # the draft states but no result shows. 0 turns the reads off.
-  reviewToolRoundsRCA: '1'
-  reviewToolRoundsChat: '1'
-  reviewToolRoundsRunbook: '1'
-  reviewToolRoundsRunbookValidation: '1'
-  reviewToolRoundsPeriodicRunbook: '1'
-
   # -- Maximum reasoning iterations of the runbook executor. Higher than RCA because a runbook
   # both investigates AND acts.
   maxIterationsRunbook: '35'
   maxIterationsRunbookValidation: '11'
-  runbookValidationToolOutputCharLimit: '10000'
-  runbookValidationCompactionCharThreshold: '200000'
+
+  # -- Share of the model's context window, in percent, at which an agent's history is compacted into
+  # one summary before the next call. The window of each model comes from the models ConfigMap.
+  contextCompactionThresholdPct: '95'
 
   # -- What one LLM call claims against the daily budget before it runs, in USD. The claim is
   # rewritten to the real cost once the call returns. Raising it refuses calls sooner near the
@@ -82,7 +76,17 @@ analysis:
   # model asks for still runs, a wide fan-out just queues.
   toolConcurrency: '8'
   toolTransientRetries: '2'
-  summarizerMaxTokens: '1500'
+  # -- One tool result an agent reads whole is at most this share of the model's window, in percent,
+  # and at most toolResultMaxTokens. A larger result is saved to a file in the pod, and the agent
+  # reads a preview and then the parts it needs with its restricted bash tool.
+  toolResultMaxWindowPct: '15'
+  toolResultMaxTokens: '25000'
+  # -- Hours a chat's saved tool results are kept; a single run's are deleted when it ends.
+  toolResultRetentionHours: '24'
+  # -- Size limit of the emptyDir that holds saved tool results. The kubelet evicts the pod when the
+  # folder grows past it, so keep it well above normal use; folders are deleted when a run ends, with
+  # a chat, or after toolResultRetentionHours.
+  toolResultStorageSizeLimit: '2Gi'
   kubernetesOperationTimeoutSeconds: '30'
   budgetReserveWaitSeconds: '180'
   budgetReserveWaitChatSeconds: '15'
@@ -90,7 +94,7 @@ analysis:
   budgetSweepIntervalSeconds: '600'
 
 # ----------------------------------------------------------------------------
-# sreChat — limits for the interactive chat agent. It is a hybrid (quick lookups,
+# sreChat: limits for the interactive chat agent. It is a hybrid (quick lookups,
 # bounded actions, and deep dives), so its caps sit between RCA and runbook.
 # ----------------------------------------------------------------------------
 sreChat:
@@ -113,7 +117,7 @@ sreChat:
   waitTimeoutSeconds: '30'
 
 # ----------------------------------------------------------------------------
-# llm — LLM backend configuration (AWS Bedrock)
+# llm: LLM backend configuration (AWS Bedrock)
 # ----------------------------------------------------------------------------
 llm:
   # -- LLM provider: aws, anthropic, openai, azure_openai, vertex, azure_anthropic,
@@ -147,11 +151,11 @@ llm:
 
   # -- Name of a pre-existing secret holding the AWS credentials
   # (keys: AWS_ACCESS_KEY_ID, AWS_REGION, AWS_SECRET_ACCESS_KEY).
-  # This secret is NOT created by the chart — see the readme.
+  # This secret is NOT created by the chart; see the readme.
   credentialsSecretName: randoli-sre-agent-secret
 
 # ----------------------------------------------------------------------------
-# observability — telemetry backends the agent queries and exports to.
+# observability: telemetry backends the agent queries and exports to.
 # Defaults match the service names installed by the randoli-agent data plane
 # chart. Standalone installs MUST override every value in this section.
 # ----------------------------------------------------------------------------
@@ -179,7 +183,7 @@ observability:
   tempoTimeoutSeconds: '30'
 
 # ----------------------------------------------------------------------------
-# dataPlane — Randoli data plane services the agent reports back to.
+# dataPlane: Randoli data plane services the agent reports back to.
 # Defaults match the randoli-agent umbrella chart's service names.
 # Standalone installs MUST override every value in this section.
 # ----------------------------------------------------------------------------
@@ -240,7 +244,7 @@ mcpClient:
   defaultMaxCalls: '10'
 
 # ----------------------------------------------------------------------------
-# mcpServers — MCP servers wired into the agent. Each server installs its
+# mcpServers: MCP servers wired into the agent. Each server installs its
 # in-cluster Deployment/Service (where needed) plus the MCPConfiguration CR
 # that registers it with the agent (the agent watches the CRD in crds/).
 # All servers install by default; turn any off with its `enabled` flag.
@@ -256,14 +260,14 @@ mcpServers:
     imagePullPolicy: IfNotPresent
     port: 8080
     # -- Toolsets exposed by the server (see containers/kubernetes-mcp-server docs).
-    toolsets: "config,core,kcp,kiali,kubevirt,tekton"
+    toolsets: "config,core,helm,kcp,kiali,kubevirt,tekton"
     resources:
       requests:
         cpu: 50m
         memory: 258Mi
       limits:
         memory: 1Gi
-    # Scheduling — merged with the global.* counterparts (both applied).
+    # Scheduling: merged with the global.* counterparts (both applied).
     nodeSelector: {}
     tolerations: []
     affinity: {}
@@ -299,7 +303,7 @@ mcpServers:
         memory: 64Mi
       limits:
         memory: 256Mi
-    # Scheduling — merged with the global.* counterparts (both applied).
+    # Scheduling: merged with the global.* counterparts (both applied).
     nodeSelector: {}
     tolerations: []
     affinity: {}
@@ -325,7 +329,7 @@ mcpServers:
         memory: 64Mi
       limits:
         memory: 256Mi
-    # Scheduling — merged with the global.* counterparts (both applied).
+    # Scheduling: merged with the global.* counterparts (both applied).
     nodeSelector: {}
     tolerations: []
     affinity: {}
@@ -334,14 +338,14 @@ mcpServers:
     annotations: {}
     podAnnotations: {}
 
-  # Tempo MCP — no server Deployment; the CR points at the Tempo
+  # Tempo MCP: no server Deployment; the CR points at the Tempo
   # query-frontend's built-in MCP endpoint (<observability.tempoUrl>/api/mcp).
   # The endpoint itself is enabled by the chart that installs Tempo (in the
   # randoli-agent umbrella: tempo/tempoDistributed mcp_server keys).
   tempo:
     enabled: true
 
-  # OpenCost MCP — no server Deployment; the CR points at the OpenCost
+  # OpenCost MCP: no server Deployment; the CR points at the OpenCost
   # service's built-in MCP endpoint (dataPlane.opencostUrl; OpenCost serves
   # streamable HTTP MCP at the port root, no path suffix).
   opencost:
@@ -443,59 +447,32 @@ global:
 
 models:
   # Root cause analysis
-  RCA_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   RCA_INVESTIGATOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  RCA_ITERATION_FINDING_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  RCA_POST_PROCESSOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  RCA_TOOL_OUTPUT_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
   RCA_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RCA_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
 
   # Runbook execution
-  RUNBOOK_TICKETING_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  RUNBOOK_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   RUNBOOK_EXECUTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  RUNBOOK_GITHUB_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  RUNBOOK_ITERATION_FINDING_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  RUNBOOK_POST_PROCESSOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  RUNBOOK_TOOL_OUTPUT_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
   RUNBOOK_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RUNBOOK_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
 
   # Periodic (scheduled) runbook
-  PERIODIC_RUNBOOK_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   PERIODIC_RUNBOOK_EXECUTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  PERIODIC_RUNBOOK_GITHUB_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  PERIODIC_RUNBOOK_ITERATION_FINDING_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  PERIODIC_RUNBOOK_POST_PROCESSOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  PERIODIC_RUNBOOK_TICKETING_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  PERIODIC_RUNBOOK_TOOL_OUTPUT_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
   PERIODIC_RUNBOOK_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  PERIODIC_RUNBOOK_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
 
-  RUNBOOK_VALIDATION_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  # Runbook validation
   RUNBOOK_VALIDATION_EXECUTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  RUNBOOK_VALIDATION_GITHUB_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  RUNBOOK_VALIDATION_ITERATION_FINDING_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  RUNBOOK_VALIDATION_POST_PROCESSOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  RUNBOOK_VALIDATION_TICKETING_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  RUNBOOK_VALIDATION_TOOL_OUTPUT_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
   RUNBOOK_VALIDATION_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  RUNBOOK_VALIDATION_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
 
   # Interactive SRE chat
-  SRE_CHAT_TICKETING_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  SRE_CHAT_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  SRE_CHAT_CONVERSATION_SUMMARIZER_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   SRE_CHAT_EXECUTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  SRE_CHAT_GITHUB_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  SRE_CHAT_ITERATION_FINDING_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  SRE_CHAT_POST_PROCESSOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  SRE_CHAT_TITLE_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  SRE_CHAT_TOOL_OUTPUT_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
   SRE_CHAT_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  SRE_CHAT_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  SRE_CHAT_TITLE_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
 
   # MCP tool-calling agent
-  MCP_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  MCP_ITERATION_FINDING_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  MCP_POST_PROCESSOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   MCP_TOOL_CALLING_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  MCP_TOOL_OUTPUT_SUMMARIZER_MODEL: qwen.qwen3-coder-30b-a3b-v1:0
   MCP_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  
+  MCP_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
