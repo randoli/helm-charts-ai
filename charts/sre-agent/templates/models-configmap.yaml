@@ -19,6 +19,9 @@ data:
         cache_read_cost:     0.00000033
         cache_write_5m_cost: 0.000004125
         cache_write_1h_cost: 0.0000066
+        context_window:      200000
+        max_output_tokens:   16000
+        supports_schema_with_tools: true
       - provider: bedrock
         id: qwen.qwen3-coder-30b-a3b-v1:0
         input_cost:          0.00000015
@@ -26,6 +29,9 @@ data:
         cache_read_cost:     0
         cache_write_5m_cost: 0
         cache_write_1h_cost: 0
+        context_window:      262144
+        max_output_tokens:   8000
+        supports_tool_choice: false
       #  vertex
       - provider: vertex
         id: claude-sonnet-4-5@20250929
@@ -34,6 +40,8 @@ data:
         cache_read_cost:     0.0000003
         cache_write_5m_cost: 0.00000375
         cache_write_1h_cost: 0.000006
+        context_window:      200000
+        max_output_tokens:   16000
       - provider: vertex
         id: gemini-3-pro
         input_cost:          0.000002
@@ -56,6 +64,8 @@ data:
         cache_read_cost:     0.0000003
         cache_write_5m_cost: 0.00000375
         cache_write_1h_cost: 0.000006
+        context_window:      200000
+        max_output_tokens:   16000
       - provider: anthropic
         id: claude-haiku-4-5-20251001
         input_cost:          0.000001
@@ -63,6 +73,23 @@ data:
         cache_read_cost:     0.0000001
         cache_write_5m_cost: 0.00000125
         cache_write_1h_cost: 0.000002
+        context_window:      200000
+        max_output_tokens:   16000
+      #  openai
+      - provider: openai
+        id: gpt-5.4
+        input_cost:          0.0000025
+        output_cost:         0.000015
+        cache_read_cost:     0.00000025
+        cache_write_5m_cost: 0
+        cache_write_1h_cost: 0
+      - provider: openai
+        id: gpt-5.4-mini
+        input_cost:          0.00000075
+        output_cost:         0.0000045
+        cache_read_cost:     0.000000075
+        cache_write_5m_cost: 0
+        cache_write_1h_cost: 0
       #  azure_openai
       - provider: azure_openai
         id: gpt-5.4
@@ -86,6 +113,8 @@ data:
         cache_read_cost:     0.0000003
         cache_write_5m_cost: 0.00000375
         cache_write_1h_cost: 0.000006
+        context_window:      200000
+        max_output_tokens:   16000
       - provider: azure_anthropic
         id: claude-haiku-4-5
         input_cost:          0.000001
@@ -93,6 +122,8 @@ data:
         cache_read_cost:     0.0000001
         cache_write_5m_cost: 0.00000125
         cache_write_1h_cost: 0.000002
+        context_window:      200000
+        max_output_tokens:   16000
       #  azure_meta
       - provider: azure_meta
         id: Llama-4-Maverick-17B-128E-Instruct-FP8
