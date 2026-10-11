@@ -87,9 +87,6 @@ analysis:
   # reads a preview and then the parts it needs with its restricted bash tool.
   toolResultMaxWindowPct: '15'
   toolResultMaxTokens: '25000'
-  # -- The most characters one read of a saved result returns to the agent; a longer read is cut with a note
-  # telling it to read a narrower line range or pattern.
-  bashOutputMaxChars: '20000'
   # -- Hours a chat's saved tool results are kept; a single run's are deleted when it ends.
   toolResultRetentionHours: '24'
   # -- Size limit of the emptyDir that holds saved tool results. The kubelet evicts the pod when the

@@ -86,7 +86,6 @@ data:
   BUDGET_RESERVE_WAIT_CHAT_S: '{{ .Values.analysis.budgetReserveWaitChatSeconds }}'
   TOOL_RESULT_MAX_WINDOW_PCT: '{{ .Values.analysis.toolResultMaxWindowPct }}'
   TOOL_RESULT_MAX_TOKENS: '{{ .Values.analysis.toolResultMaxTokens }}'
-  BASH_OUTPUT_MAX_CHARS: '{{ .Values.analysis.bashOutputMaxChars }}'
   TOOL_RESULT_RETENTION_HOURS: '{{ .Values.analysis.toolResultRetentionHours }}'
   TOOL_RESULT_STORAGE_PATH: /var/lib/sre-agent/tool_results
   BUDGET_REPROBE_S: '{{ .Values.analysis.budgetReprobeSeconds }}'

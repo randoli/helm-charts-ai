@@ -269,8 +269,8 @@ Two numbers per model size each run: `context_window`, the tokens one call may h
 `analysis.compactionKeepRecentPct` of it. A tool result reaches the model whole unless it is over
 the window limit: `analysis.toolResultMaxWindowPct` of the window (15%), and at most
 `analysis.toolResultMaxTokens` tokens (25,000). A longer result is saved to a file in the pod and
-reaches the model with a large preview, and the model reads the rest with a read-only `bash` tool
-whose output is capped at `analysis.bashOutputMaxChars` characters (20000). A model without these
+reaches the model with a large preview, and the model reads the rest with a read-only `bash` tool,
+whose own large reads are saved the same way. A model without these
 two numbers gets 200,000 and 16,000.
 
 Two optional flags per model cover the things that are not about price:
