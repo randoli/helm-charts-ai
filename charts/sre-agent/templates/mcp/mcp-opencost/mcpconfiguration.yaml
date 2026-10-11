@@ -4,7 +4,6 @@ kind: MCPConfiguration
 metadata:
   name: mcp-opencost
   annotations:
-    mcp.ai.randoli.io/rca:              "enabled"
     mcp.ai.randoli.io/runbook:          "enabled"
     mcp.ai.randoli.io/periodic-runbook: "enabled"
     mcp.ai.randoli.io/sre-chat:         "enabled"

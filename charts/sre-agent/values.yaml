@@ -63,9 +63,15 @@ analysis:
   maxIterationsRunbook: '35'
   maxIterationsRunbookValidation: '11'
 
-  # -- Share of the model's context window, in percent, at which an agent's history is compacted into
-  # one summary before the next call. The window of each model comes from the models ConfigMap.
-  contextCompactionThresholdPct: '95'
+  # -- Share of the model's context window, in percent, at which the older part of an agent's history
+  # is compacted into one summary before the next call. The window of each model comes from the models
+  # ConfigMap.
+  compactionTriggerPct: '95'
+
+  # -- Share of the context window, in percent, that the newest replies and their tool results may take
+  # and still be kept word for word through a compaction. Older results are saved to files the agent
+  # can read back.
+  compactionKeepRecentPct: '25'
 
   # -- What one LLM call claims against the daily budget before it runs, in USD. The claim is
   # rewritten to the real cost once the call returns. Raising it refuses calls sooner near the
@@ -81,6 +87,9 @@ analysis:
   # reads a preview and then the parts it needs with its restricted bash tool.
   toolResultMaxWindowPct: '15'
   toolResultMaxTokens: '25000'
+  # -- The most characters one read of a saved result returns to the agent; a longer read is cut with a note
+  # telling it to read a narrower line range or pattern.
+  bashOutputMaxChars: '20000'
   # -- Hours a chat's saved tool results are kept; a single run's are deleted when it ends.
   toolResultRetentionHours: '24'
   # -- Size limit of the emptyDir that holds saved tool results. The kubelet evicts the pod when the
@@ -148,6 +157,10 @@ llm:
   # -- Prompt cache lifetime. '1h' keeps the cached prefix warm across a whole investigation;
   # empty uses the provider's 5-minute default. '1h' costs more to write and far less to re-read.
   promptCacheTtl: '1h'
+
+  # -- Temperature of every model call that does not think. Set it to 'none' or '' to send no
+  # temperature, for a model that rejects one. A model that thinks is always sent none.
+  temperature: '0.00000001'
 
   # -- Name of a pre-existing secret holding the AWS credentials
   # (keys: AWS_ACCESS_KEY_ID, AWS_REGION, AWS_SECRET_ACCESS_KEY).
@@ -476,3 +489,18 @@ models:
   MCP_TOOL_CALLING_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   MCP_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   MCP_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+
+# -- Thinking budget per agent loop: how many tokens that loop's model may think before each reply,
+# between tool calls too. Only Claude on aws, anthropic and vertex can think.
+# Thinking is OFF: every agent runs with a budget of 0, the agent's default when its key is not set.
+# To turn thinking on for an agent, uncomment its line below (the value shown is the tested budget)
+# and change `thinkingBudgets: {}` to `thinkingBudgets:`. A value above 0 must be at least 1024 and
+# below the model's max_output_tokens (16000 for Sonnet 4.5).
+# The agent reads these at startup, so restart it after a change.
+thinkingBudgets: {}
+  # RCA_INVESTIGATOR_THINKING_BUDGET: 6000
+  # RUNBOOK_EXECUTOR_THINKING_BUDGET: 4000
+  # PERIODIC_RUNBOOK_EXECUTOR_THINKING_BUDGET: 4000
+  # RUNBOOK_VALIDATION_EXECUTOR_THINKING_BUDGET: 4000
+  # SRE_CHAT_EXECUTOR_THINKING_BUDGET: 4000
+  # MCP_TOOL_CALLING_THINKING_BUDGET: 2048

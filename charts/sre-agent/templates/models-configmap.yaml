@@ -66,6 +66,7 @@ data:
         cache_write_1h_cost: 0.000006
         context_window:      200000
         max_output_tokens:   16000
+        supports_schema_with_tools: true
       - provider: anthropic
         id: claude-haiku-4-5-20251001
         input_cost:          0.000001
@@ -75,6 +76,7 @@ data:
         cache_write_1h_cost: 0.000002
         context_window:      200000
         max_output_tokens:   16000
+        supports_schema_with_tools: true
       #  openai
       - provider: openai
         id: gpt-5.4

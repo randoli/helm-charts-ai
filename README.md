@@ -17,6 +17,7 @@
   - [The LLM provider](#the-llm-provider)
   - [The pricing file, and what a model can do](#the-pricing-file-and-what-a-model-can-do)
   - [One model per role](#one-model-per-role)
+  - [Thinking and temperature](#thinking-and-temperature)
 - [Further configuration](#further-configuration)
 - [Troubleshooting](#troubleshooting)
 
@@ -264,8 +265,13 @@ by `llm.promptCacheTtl`, and which one applies is decided per call from what the
 
 Two numbers per model size each run: `context_window`, the tokens one call may hold, and
 `max_output_tokens`, the most one reply may write. The agent compacts its history before it passes
-`analysis.contextCompactionThresholdPct` of the window, and saves a tool result to a file when it would
-take more than `analysis.toolResultMaxWindowPct` of it. A model without them gets 200,000 and 16,000.
+`analysis.compactionTriggerPct` of the window, keeping the newest replies word for word up to
+`analysis.compactionKeepRecentPct` of it. A tool result reaches the model whole unless it is over
+the window limit: `analysis.toolResultMaxWindowPct` of the window (15%), and at most
+`analysis.toolResultMaxTokens` tokens (25,000). A longer result is saved to a file in the pod and
+reaches the model with a large preview, and the model reads the rest with a read-only `bash` tool
+whose output is capped at `analysis.bashOutputMaxChars` characters (20000). A model without these
+two numbers gets 200,000 and 16,000.
 
 Two optional flags per model cover the things that are not about price:
 
@@ -279,7 +285,8 @@ Two optional flags per model cover the things that are not about price:
 Each agent runs its loop on one model, named by a key in the `models` map: `RCA_INVESTIGATOR_MODEL`,
 `RUNBOOK_EXECUTOR_MODEL`, `PERIODIC_RUNBOOK_EXECUTOR_MODEL`, `RUNBOOK_VALIDATION_EXECUTOR_MODEL`,
 `SRE_CHAT_EXECUTOR_MODEL` and `MCP_TOOL_CALLING_MODEL`. Each agent also has two more keys with the
-same prefix: `<prefix>_VERDICT_EXTRACTOR_MODEL` fills in the final answer and `<prefix>_COMPACTION_MODEL`
+same prefix: `<prefix>_VERDICT_EXTRACTOR_MODEL` fills in the final answer when the loop's last reply did
+not carry one, and `<prefix>_COMPACTION_MODEL`
 writes the summary when the history gets too long, for example `RCA_VERDICT_EXTRACTOR_MODEL` and
 `RCA_COMPACTION_MODEL`. Both return a fixed shape, so point them at a model that supports a forced tool
 call, such as Claude. `SRE_CHAT_TITLE_MODEL` names the chat's titles and can be a cheaper model. Each
@@ -295,6 +302,32 @@ helm upgrade sre-agent randoli/sre-agent -n randoli-agents \
 Every id set there must also appear in `models.yaml` for the active provider. If one does not, the
 agent says so in a single startup line naming every role that is wrong, which is what you want the
 first time you change provider and half the keys still hold the old ids.
+
+### Thinking and temperature
+
+Each agent's loop model can think before each reply, between tool calls too. The `thinkingBudgets`
+map sets how many tokens it may think, one key per loop: `RCA_INVESTIGATOR_THINKING_BUDGET`,
+`RUNBOOK_EXECUTOR_THINKING_BUDGET`, `PERIODIC_RUNBOOK_EXECUTOR_THINKING_BUDGET`,
+`RUNBOOK_VALIDATION_EXECUTOR_THINKING_BUDGET`, `SRE_CHAT_EXECUTOR_THINKING_BUDGET` and
+`MCP_TOOL_CALLING_THINKING_BUDGET`. Only Claude on `aws`, `anthropic` and `vertex` can think. Thinking
+is billed as output tokens and makes each reply slower.
+
+Thinking is off by default: `thinkingBudgets` is empty, so every agent runs with a budget of `0`. The
+tested budgets are kept as commented lines under `thinkingBudgets` in `values.yaml` (6000 for RCA,
+4000 for the runbook agents and the chat, 2048 for the MCP agent). To turn thinking on for an agent,
+uncomment its line and change `thinkingBudgets: {}` to `thinkingBudgets:`, or set it on the command
+line. A budget above `0` must be at least 1024 and below the model's `max_output_tokens` (16000 for
+Sonnet 4.5); the agent names a budget that breaks this in one startup line. The agent reads these at
+startup, so restart it after a change.
+
+```
+helm upgrade sre-agent randoli/sre-agent -n randoli-agents \
+  --set thinkingBudgets.SRE_CHAT_EXECUTOR_THINKING_BUDGET=4000
+```
+
+`llm.temperature` is the temperature of every model call that does not think, `0.00000001` by default.
+Set it to `none` to send no temperature, for a model that rejects one. A thinking model is always sent
+none.
 
 ## Further configuration
 
