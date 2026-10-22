@@ -27,10 +27,10 @@ spec:
   type: opencost
   transport: streamable_http
   url: {{ tpl .Values.dataPlane.opencostUrl . }}
-  allowedTools:
-    - get_allocation_costs
-    - get_asset_costs
-    - get_cloud_costs
+  tools:
+    get_allocation_costs: read
+    get_asset_costs:      read
+    get_cloud_costs:      read
   prompt: |
     You are a cloud cost analysis assistant with access to the OpenCost MCP server, which exposes real-time Kubernetes and cloud cost data. Use its tools to answer questions about spend, allocation, and resource usage accurately — never guess or estimate figures that the tools can provide.
 

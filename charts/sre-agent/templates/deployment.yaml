@@ -6,6 +6,8 @@ metadata:
   labels:
     {{- include "selectorLabels" . | nindent 4 }}
     {{- include "labels" . | nindent 4 }}
+  annotations:
+    resource.opentelemetry.io/service.name: randoli-sre-agent
 spec:
   replicas: 1
   selector:
@@ -18,6 +20,7 @@ spec:
         {{- include "labels" . | nindent 8 }}
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        resource.opentelemetry.io/service.name: randoli-sre-agent
         {{- if .Values.annotations }}
           {{- with .Values.annotations }}
           {{- toYaml . | nindent 8 }}
@@ -54,6 +57,8 @@ spec:
             - name: model-pricing
               mountPath: /etc/agentic-ai
               readOnly: true
+            - name: tool-results
+              mountPath: /var/lib/sre-agent/tool_results
           resources:
             limits:
               memory: 1Gi
@@ -64,6 +69,9 @@ spec:
         - name: model-pricing
           configMap:
             name: randoli-sre-agent-models
+        - name: tool-results
+          emptyDir:
+            sizeLimit: {{ .Values.analysis.toolResultStorageSizeLimit }}
       {{- if or .Values.tolerations .Values.global.tolerations }}
       tolerations:
         {{- with .Values.tolerations }}

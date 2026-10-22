@@ -52,3 +52,20 @@ app.kubernetes.io/managed-by: {{ .context.Release.Service }}
 helm.sh/chart: {{ include "chartName" .context }}
 {{- end -}}
 {{- end -}}
+
+{{- define "guardrails.usernames" -}}
+{{- $names := list -}}
+{{- if and .Values.mcpServers.kubernetes.enabled (not .Values.global.openshift.enabled) -}}
+{{- $names = append $names (printf "system:serviceaccount:%s:randoli-mcp-server-kubernetes" .Release.Namespace) -}}
+{{- end -}}
+{{- range .Values.guardrails.serviceAccounts -}}
+{{- $names = append $names (printf "system:serviceaccount:%s:%s" (.namespace | default $.Release.Namespace) .name) -}}
+{{- end -}}
+{{- toJson (uniq $names) -}}
+{{- end -}}
+
+{{- define "guardrails.active" -}}
+{{- if and .Values.guardrails.enabled (include "guardrails.usernames" . | fromJsonArray) (semverCompare ">=1.30-0" .Capabilities.KubeVersion.Version) -}}
+true
+{{- end -}}
+{{- end -}}
