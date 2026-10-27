@@ -6,8 +6,8 @@
 #     defaults in `observability:` and `dataPlane:` already point at the
 #     umbrella's service names, so only `analysis.enabledNamespaces` must be set.
 #   * Standalone: override EVERY value in `observability:` and `dataPlane:` to
-#     point at your own Prometheus / Loki / Tempo / OTel collector / Flight
-#     SQL / callback endpoints, and create the required secrets (see readme).
+#     point at your own Prometheus / Loki / Tempo / OTel collector /
+#     PostgreSQL / callback endpoints, and create the required secrets (see readme).
 #
 # Model pricing is NOT a value here: it ships as templates/models-configmap.yaml and is mounted at
 # /etc/agentic-ai/models.yaml. Every id in `models:` below must have an entry there, or that call is
@@ -190,24 +190,32 @@ observability:
 dataPlane:
   agentCallbackUrl: http://randoli-agent:8080/
 
-  # -- Arrow Flight SQL endpoint of the data plane's analytics store.
-  flightSqlUrl: grpc+tcp://randoli-agent:31337
+  # -- PostgreSQL server of the data plane (the umbrella chart's randoli-db).
+  # Values are rendered through `tpl`.
+  dbHost: randoli-db
+  dbPort: '5432'
+  dbName: randoli
+  # -- libpq sslmode: disable, require, verify-ca, verify-full
+  dbSslMode: disable
+  # -- Database role of the SRE agent (read access to the data plane tables,
+  # write access to its audit and chat tables).
+  dbUser: sre_agent
 
   # -- Base URL of the OpenCost service the agent queries for cost data.
   opencostUrl: http://opencost.randoli-agents.svc.cluster.local:8081
 
-  # -- Name of a pre-existing secret holding the Flight SQL credentials
-  # (keys: username, password). Created by the data plane chart, NOT by this
-  # chart.
+  # -- Name of a pre-existing secret holding the database password (rendered
+  # through `tpl`). Created by the data plane chart, NOT by this chart.
   databaseSecretName: randoli-agent-db
+  # -- Key of the SRE agent's password in databaseSecretName.
+  databasePasswordKey: sre-agent-password
 
-  # -- Seconds any single Flight SQL statement may take. The per-call budget reservation runs
+  # -- Seconds any single database statement may take. The per-call budget reservation runs
   # on this path and fails CLOSED, so a slow store suppresses LLM calls rather than hanging.
   dbTimeoutSeconds: '10'
   dbPoolMaxConnections: '16'
   dbPoolAcquireTimeoutSeconds: '10'
   dbPoolIdleTimeoutSeconds: '300'
-  dbMaxMessageSizeBytes: '67108864'
   healthDbCheckTtlSeconds: '5'
 
 server:
@@ -362,11 +370,11 @@ guardrails:
       matchLabels:
         app.kubernetes.io/name: randoli-agent
         app.kubernetes.io/component: randoli-agent
-    - name: randoli-fsqld
+    - name: randoli-db
       kind: StatefulSet
       matchLabels:
         app.kubernetes.io/name: randoli-agent
-        app.kubernetes.io/component: randoli-fsqld
+        app.kubernetes.io/component: randoli-db
     - name: randoli-sre-agent
       kind: Deployment
       matchLabels:

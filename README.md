@@ -55,7 +55,7 @@ NOTE: replace <namespace1\,namespace2> with a list of namespaces which can be an
 
 The SRE agent is also bundled into the `randoli-agent` umbrella chart as an optional
 dependency. When installed this way, all endpoint configuration (Prometheus, Loki, Tempo,
-OTel collector, agent callback/Flight SQL URLs) is provided by the umbrella chart:
+OTel collector, agent callback URL, PostgreSQL connection) is provided by the umbrella chart:
 
 ```
 helm install randoli randoli/randoli-agent -n randoli-agents \
@@ -315,8 +315,13 @@ helm upgrade sre-agent randoli/sre-agent -n randoli-agents \
   --set observability.otelExporterEndpoint=http://my-otel-collector:4317 \
   --set observability.traceLoopBaseUrl=http://my-otel-collector:4318 \
   --set dataPlane.agentCallbackUrl=http://my-agent:8080/ \
-  --set dataPlane.flightSqlUrl=grpc+tcp://my-agent:31337
+  --set dataPlane.dbHost=my-postgres.my-namespace.svc \
+  --set dataPlane.dbSslMode=require \
+  --set dataPlane.databaseSecretName=my-db-secret
 ```
+
+  The database password is read from key `sre-agent-password` of `dataPlane.databaseSecretName`
+  (`dataPlane.databasePasswordKey`); the role is `dataPlane.dbUser` (`sre_agent`).
 
 - **LLM call timeouts** are split in two, because the two kinds of call are nothing alike. A big
   reasoning call can legitimately run for minutes (`llm.readTimeoutSeconds`, 240s), while the small
