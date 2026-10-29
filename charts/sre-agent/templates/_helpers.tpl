@@ -14,7 +14,7 @@ Create chart name and version as used by the chart label.
 
 {{/*
 Selector labels shared by the Deployment's matchLabels, its pod template and
-the Service selector. These are immutable on a live Deployment — never add or
+the Service selector. These are immutable on a live Deployment; never add or
 remove keys without a migration plan.
 */}}
 {{- define "selectorLabels" -}}
@@ -38,7 +38,7 @@ helm.sh/chart: {{ include "chartName" . }}
 {{- end -}}
 
 {{/*
-Labels for MCP server resources — same shape as "labels" but with the MCP
+Labels for MCP server resources: same shape as "labels" but with the MCP
 server's own component name. Expects a dict {context: ., component: "<name>"}.
 Usage: include "mcpServerLabels" (dict "context" . "component" "randoli-mcp-server-kubernetes")
 */}}
@@ -50,5 +50,22 @@ app.kubernetes.io/version: {{ .context.Chart.AppVersion | quote }}
 {{- if eq (default "helm" .context.Values.creator) "helm" }}
 app.kubernetes.io/managed-by: {{ .context.Release.Service }}
 helm.sh/chart: {{ include "chartName" .context }}
+{{- end -}}
+{{- end -}}
+
+{{- define "guardrails.usernames" -}}
+{{- $names := list -}}
+{{- if and .Values.mcpServers.kubernetes.enabled (not .Values.global.openshift.enabled) -}}
+{{- $names = append $names (printf "system:serviceaccount:%s:randoli-mcp-server-kubernetes" .Release.Namespace) -}}
+{{- end -}}
+{{- range .Values.guardrails.serviceAccounts -}}
+{{- $names = append $names (printf "system:serviceaccount:%s:%s" (.namespace | default $.Release.Namespace) .name) -}}
+{{- end -}}
+{{- toJson (uniq $names) -}}
+{{- end -}}
+
+{{- define "guardrails.active" -}}
+{{- if and .Values.guardrails.enabled (include "guardrails.usernames" . | fromJsonArray) (semverCompare ">=1.30-0" .Capabilities.KubeVersion.Version) -}}
+true
 {{- end -}}
 {{- end -}}

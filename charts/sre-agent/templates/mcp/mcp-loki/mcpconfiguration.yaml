@@ -33,46 +33,46 @@ spec:
     loki_label_values: read
   prompt: |
     ## Loki server notes
-    Scope: log lines stored in this cluster's Loki, within its retention. Read-only.
-    Use for: what a workload wrote around a time, the exact error text and when it first appeared, how often a line occurs over time and on which replicas, and the logs of pods that no longer exist. Not for: current object state, metrics or traces.
-    Can:
-    - run a LogQL log query, or a metric query such as count_over_time or rate, over a window: loki_query, with start, end, limit and format
-    - list the label names present in a window: loki_label_names
-    - list one label's values in a window: loki_label_values
+    Scope: log lines in this cluster's Loki, retention about 30 days (a window 29 days back returns lines, 31 days back none), including pods deleted within that time. Read-only. Not for object state, metrics or traces.
     Cannot:
-    - show lines older than its retention, or lines a process did not write to its container output
-    - tell a label that does not exist, a value that matched nothing and a line filter that matched nothing apart: each returns no lines
+    - run metric queries (count_over_time, rate, sum by): every one fails with "cannot unmarshal number into Go struct field LokiEntry...". Count by reading lines instead.
+    - search line content with loki_label_names or loki_label_values; a word needs a line filter on loki_query.
+    - tell a missing label, a value that matched nothing and a line filter that matched nothing apart: each returns no lines.
     Identifiers:
-    - The container output of every pod is stored with the labels k8s_pod_namespace, k8s_pod_name, k8s_container_name, k8s_container_image, k8s_pod_node_name and service_name, and source_type="kubernetes_logs".
-    - service_name on those streams is the pod's OpenTelemetry service name (its resource.opentelemetry.io/service.name annotation), which is often the container name rather than the workload name. Pods without one, such as databases, brokers and pipeline steps, have service_name="<null>".
-    - Services that send OpenTelemetry logs also have a second stream per pod, labelled k8s_namespace_name, k8s_pod_name, k8s_container_name, k8s_deployment_name and service_name, with trace_id, span_id and severity_text as structured metadata. Only a few services send these, so most namespaces have no stream with k8s_namespace_name.
-    - There is no namespace, pod or severity label.
-    - Loki adds detected_level (debug, info, warn, error or unknown) to each line. Lines in a format it cannot read get unknown, so a level filter misses their errors.
-    - Label regex matchers are fully anchored: k8s_pod_name=~"<workload>-.*" matches pods whose names start with the workload name; use =~".*<name>.*" for part of a name.
+    - Every pod's container output: k8s_pod_namespace, k8s_pod_name, k8s_container_name, k8s_container_image, k8s_pod_node_name, service_name, source_type="kubernetes_logs". service_name is the pod's OTel service name, often the container name; pods without one have service_name="<null>".
+    - A few services also send OTel log streams labelled k8s_namespace_name, k8s_pod_name, k8s_container_name, k8s_deployment_name, service_name, with trace_id, span_id and severity_text as metadata; most namespaces have no k8s_namespace_name stream.
+    - There is no namespace, pod or severity label. detected_level (debug, info, warn, error, unknown) is added per line; unreadable formats get unknown, so a level filter misses their errors.
+    - Label regexes are fully anchored: =~"<workload>-.*" for a prefix, =~".*<name>.*" for part of a name.
+    - A line's first timestamp is when Loki stored it (UTC); a time inside the message is the application's own and may be in another zone. Order events by the first.
+    Keeping results small (busy services write thousands of lines an hour, and every line returned takes room in the conversation):
+    - ALWAYS read with a line filter for what you are looking for, limit 50 or less, | line_format "{{`{{ __line__ | trunc 300 }}`}}" after the filters, and format set to text, which prints each stream's labels once. Raise the limit or drop trunc only for the lines you need, over a window of a few seconds around them.
+    - A container's whole start-up or crash output can arrive as one entry of many lines, so trunc shows only its opening and hides an error further in. ALWAYS filter for error words before you say a log has none, such as |~ "(?i)error|fail|bad|fatal|panic|exception|refused": a line filter matches anywhere in the entry, before trunc cuts it. Then read a matching entry in full, without trunc, over a few seconds around its timestamp.
+    - To learn how often a line occurs, read it with the filter, trunc and text format over a few minutes and count those lines, then scale to the hour; hours of raw lines cost far more and say the same.
+    - For an exact count over a window, read every matching line with | line_format "{{`{{ __line__ | trunc 40 }}`}}", format text and limit up to 5000, and count the lines returned: a count needs the lines, not their text, and 40 characters a line keeps thousands of lines small. A read that returns exactly its limit was cut, so split the window.
     Selectors that work here:
-    - one pod, in both kinds of stream and after the pod is deleted: {k8s_pod_name="<pod>"}
-    - every pod of a workload: {k8s_pod_namespace="<namespace>", k8s_pod_name=~"<workload>-.*"}
-    - every pod of a service, by its OpenTelemetry service name: {k8s_pod_namespace="<namespace>", service_name="<otel service name>"}
-    - the pods on one node: {k8s_pod_node_name="<node>"}
-    - the records of one trace: {service_name="<otel service name>"} | trace_id="<trace id>" for OpenTelemetry records, and |= "<trace id>" for container lines that print the ID
-    - errors in any format: |~ "(?i)error|exception|fatal|panic|refused|timeout" after the selector, or | detected_level=~"error|warn" for lines Loki can read
+    - one pod, also after deletion: {k8s_pod_name="<pod>"}
+    - a workload: {k8s_pod_namespace="<namespace>", k8s_pod_name=~"<workload>-.*"}
+    - a service by OTel name: {k8s_pod_namespace="<namespace>", service_name="<otel service name>"}
+    - one node: {k8s_pod_node_name="<node>"}
+    - one trace: {service_name="<otel service name>"} | trace_id="<trace id>", or |= "<trace id>" on container lines
+    - errors in any format: |~ "(?i)error|exception|fatal|panic|refused|timeout", or | detected_level=~"error|warn"
     Going deeper:
-    - when an error started: sum by (k8s_pod_name) (count_over_time({<selector>} |~ "<error text>" [5m])) from well before the incident, then the lines around the first step above zero
-    - what a container wrote before it stopped: its pod's lines with no line filter, in a narrow window ending at the termination time
-    - whether other replicas or other pods on the same node show the same error: the same count grouped by k8s_pod_name or k8s_pod_node_name
-    - the other side of a failing call: the dependency's own pods over the same window, selected the same way
-    Reading lines for a cause (a line is evidence for the stream and time it came from, quoted with its timestamp, pod and container):
-    - Read the first occurrence, not the loudest one: count the error over a window that starts well before the incident, take the first step above zero, then read a narrow window around it including the lines just before, because the first failure usually names its cause and the later lines are its consequences. An error at the same rate before the onset is background, and saying so needs the earlier window.
-    - The shape of the count tells you what kind of event it was: a burst that stops is something that recovered and is not the cause of an ongoing failure; a rate that starts and stays marks a change; a rate that tracks traffic is load-dependent.
-    - Read each error for the layer that raised it. Connection refused, reset or timed out naming a host and port is the dependency or the network; a name-resolution failure is DNS or the Service, not the dependency; an authorization or authentication failure is a credential or a policy and says nothing about the dependency's health; a parse, deserialization or schema error is the data or a producer change; no space, too many open files or cannot allocate memory is the host or a limit; a panic or unhandled exception with a stack is the application's own path.
-    - Database lines worth finding: statement timeout or cancelled statement, deadlock detected, lock wait timeout, unable to acquire a connection or pool exhausted, too many connections on the server side, a slow-statement line with its duration, and a failed migration at start-up. A pool error in the caller with nothing in the database's own lines points at the pool or how the caller holds connections, not at the database.
-    - Message-client lines worth finding: a topic missing from metadata, leader-election or not-enough-replicas errors, repeated revoke-and-assign lines, which are a rebalance storm, and the same offset retried again and again, which is one record the consumer cannot process.
-    - Separate start-up from steady state: lines before the process says it is listening or ready are start-up failures, such as missing configuration or a dependency that was not there at boot. Errors that only appear under load are capacity. For a crash, read the previous container instance's lines in a narrow window ending at its termination time, since the last lines before exit are the closest evidence.
-    - Check whether it is one replica or all of them, and whether the pods on one node share it, by counting the same filter grouped by pod and by node. One replica failing points at that instance or its node; every replica failing points at the workload or its dependency.
-    - Before saying an error is absent, run the same selector without the line filter over the same window: lines coming back shows the stream is there and nothing matched, and no lines shows only that this selector found nothing.
+    - when an error first appeared: halve the time range with the error's filter and limit 1 (a line back means it is in that half), repeat until a few minutes wide, then read around the first match without a filter. About fifteen queries cover 30 days.
+    - how often and where: read up to 5000 matching lines and count by k8s_pod_name, k8s_pod_node_name, minute, or a caller id in the message.
+    - before a crash: the pod's lines with no filter, in a narrow window ending at the termination time.
+    Reading lines:
+    - The first occurrence usually names the cause; later lines are consequences. An error already present at the same rate before the onset is background.
+    - Read the layer that raised an error: connection refused, reset or timeout to a host and port is the dependency or network; name resolution is DNS or the Service; authentication or authorization is a credential or policy; parse or schema errors are the data or a producer; no space, too many open files or cannot allocate memory is the host or a limit; a stack trace is the application's own path.
+    - Lines before the process reports ready are start-up failures; errors only under load are capacity.
+    - Before saying an error is absent, run the selector without the line filter: lines back means the stream exists and nothing matched; none means only that the selector found nothing.
+    - The earliest line returned marks the window or retention edge, not when the problem began; find the first occurrence, or say "since at least <time>".
+    - A line that names a caller (a session, client, user, request or connection id) records who asked for the work. Count the lines by that id before explaining them by the logging workload's own settings, because a fix then belongs with the caller.
+    - Reads of separate windows show those windows only. Say an error ran without a break only after reading the time between them; otherwise name the windows where it was seen.
     Limits:
-    - start and end default to the last hour. Workaround: pass both on every call.
-    - limit defaults to 100 lines, and the server caps the lines and series one query returns, so a busy selector over a wide window comes back cut. Workaround: count with a metric query first, then read a narrow window or add a line filter.
+    - Each line comes back with its stream's labels and the whole message, and some services write lines several thousand characters long: 50 raw lines of one service have measured 300,000 characters, and the same 50 with trunc 300 and format text about 16,000. Workaround: read as Keeping results small says.
+    - | json adds every field it parses to the labels and makes each line larger. Workaround: use it only to filter on a field, followed by line_format.
+    - start and end default to the last hour. Workaround: always pass both.
+    - limit defaults to 100, max 5000, and lines come back newest first. A read that returns as many lines as its limit was cut: it holds only the newest end of its window, its earliest line is not when anything began, and a client, session or error that stopped earlier is missing from it, so a count or a list of distinct values from it covers only that end. Workaround: compare the number of lines a read returned with its limit before using its first time, a count or a list; when they are equal, raise limit, add a filter, or split the window and read each part.
     - A broad selector over a long window can time out. Workaround: add k8s_pod_name or k8s_container_name, or split the window.
-    - The url, username, password, token and org arguments point the server at a different Loki. Workaround: leave them unset.
+    - Leave url, username, password, token and org unset; they point at another Loki.
 {{- end }}
