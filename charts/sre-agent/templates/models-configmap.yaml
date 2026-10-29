@@ -58,6 +58,17 @@ data:
         cache_write_1h_cost: 0
       #  anthropic
       - provider: anthropic
+        id: claude-opus-5-5
+        input_cost:          0.000004
+        output_cost:         0.00002
+        cache_read_cost:     0.0000002
+        cache_write_5m_cost: 0.000005
+        cache_write_1h_cost: 0.000008
+        context_window:      200000
+        max_output_tokens:   16000
+        supports_tool_choice: false
+        supports_schema_with_tools: true
+      - provider: anthropic
         id: claude-sonnet-4-5-20250929
         input_cost:          0.000003
         output_cost:         0.000015

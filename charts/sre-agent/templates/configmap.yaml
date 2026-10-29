@@ -66,9 +66,10 @@ data:
   SRE_CHAT_INCIDENT_WINDOW_BEFORE_HOURS: '{{ .Values.sreChat.incidentWindowBeforeHours }}'
   SRE_CHAT_INCIDENT_WINDOW_AFTER_HOURS: '{{ .Values.sreChat.incidentWindowAfterHours }}'
 
-  # How many tool calls run at once per iteration. There is no cap on how MANY a turn may
-  # contain; this bounds only how many are in flight, so a wide fan-out queues.
+  # How many tool calls run at once per iteration; this bounds only how many are in flight.
   AGENT_TOOL_CONCURRENCY: '{{ .Values.analysis.toolConcurrency }}'
+  # The most tool calls one loop reply runs; calls past it are answered as not run.
+  MAX_TOOL_CALLS_PER_ITERATION: '{{ .Values.analysis.maxToolCallsPerIteration }}'
 
   # '1h' keeps the cached prompt prefix warm across a whole run. Empty means the 5-minute default.
   PROMPT_CACHE_TTL: '{{ .Values.llm.promptCacheTtl }}'
@@ -87,6 +88,8 @@ data:
   TOOL_RESULT_MAX_WINDOW_PCT: '{{ .Values.analysis.toolResultMaxWindowPct }}'
   TOOL_RESULT_MAX_TOKENS: '{{ .Values.analysis.toolResultMaxTokens }}'
   TOOL_RESULT_RETENTION_HOURS: '{{ .Values.analysis.toolResultRetentionHours }}'
+  TOOL_RESULT_STORAGE_MAX_BYTES: '{{ .Values.analysis.toolResultStorageMaxBytes }}'
+  BASH_TOOL_MEMORY_LIMIT_MB: '{{ .Values.analysis.bashToolMemoryLimitMb }}'
   TOOL_RESULT_STORAGE_PATH: /var/lib/sre-agent/tool_results
   BUDGET_REPROBE_S: '{{ .Values.analysis.budgetReprobeSeconds }}'
   BUDGET_SWEEP_INTERVAL_S: '{{ .Values.analysis.budgetSweepIntervalSeconds }}'
@@ -95,6 +98,8 @@ data:
   DB_POOL_MAX_CONNECTIONS: '{{ .Values.dataPlane.dbPoolMaxConnections }}'
   DB_POOL_ACQUIRE_TIMEOUT_S: '{{ .Values.dataPlane.dbPoolAcquireTimeoutSeconds }}'
   DB_POOL_IDLE_TIMEOUT_S: '{{ .Values.dataPlane.dbPoolIdleTimeoutSeconds }}'
+  DB_POOL_MAX_IDLE: '{{ .Values.dataPlane.dbPoolMaxIdle }}'
+  DB_POOL_REAP_INTERVAL_S: '{{ .Values.dataPlane.dbPoolReapIntervalSeconds }}'
   DB_MAX_MSG_SIZE_S: '{{ .Values.dataPlane.dbMaxMessageSizeBytes }}'
   HEALTH_DB_CHECK_TTL_S: '{{ .Values.dataPlane.healthDbCheckTtlSeconds }}'
   SERVER_BACKLOG: '{{ .Values.server.backlog }}'

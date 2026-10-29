@@ -78,9 +78,12 @@ analysis:
   # cap; lowering it lets a burst overshoot by more.
   budgetCallEstimateUsd: '0.3'
 
-  # -- How many tool calls run at once per iteration. Bounds concurrency only: every call the
-  # model asks for still runs, a wide fan-out just queues.
+  # -- How many tool calls run at once per iteration. Bounds concurrency only; how many calls one
+  # reply may make at all is maxToolCallsPerIteration.
   toolConcurrency: '8'
+  # -- The most tool calls one loop reply runs, bash reads and task list updates included. Calls past
+  # it get a not-run result asking for them in the next reply; the prompt states the number. '0' removes the limit.
+  maxToolCallsPerIteration: '5'
   toolTransientRetries: '2'
   # -- One tool result an agent reads whole is at most this share of the model's window, in percent,
   # and at most toolResultMaxTokens. A larger result is saved to a file in the pod, and the agent
@@ -93,6 +96,13 @@ analysis:
   # folder grows past it, so keep it well above normal use; folders are deleted when a run ends, with
   # a chat, or after toolResultRetentionHours.
   toolResultStorageSizeLimit: '2Gi'
+  # -- Byte budget the agent keeps the saved tool results under, deleting the oldest folders no run is
+  # using once it is passed. Keep it below toolResultStorageSizeLimit so the kubelet never evicts the pod.
+  toolResultStorageMaxBytes: '1610612736'
+  # -- Memory, in MB, each program of the agent's bash tool may use (sort, jq and the rest). A jq on the
+  # largest saved result needs about 128. Several can run at once inside the agent's 1Gi limit, so raise
+  # that limit before raising this. 0 turns the cap off.
+  bashToolMemoryLimitMb: '256'
   kubernetesOperationTimeoutSeconds: '30'
   budgetReserveWaitSeconds: '180'
   budgetReserveWaitChatSeconds: '15'
@@ -214,9 +224,11 @@ dataPlane:
   # -- Seconds any single Flight SQL statement may take. The per-call budget reservation runs
   # on this path and fails CLOSED, so a slow store suppresses LLM calls rather than hanging.
   dbTimeoutSeconds: '10'
-  dbPoolMaxConnections: '16'
-  dbPoolAcquireTimeoutSeconds: '10'
-  dbPoolIdleTimeoutSeconds: '300'
+  dbPoolMaxConnections: '4'
+  dbPoolAcquireTimeoutSeconds: '30'
+  dbPoolIdleTimeoutSeconds: '60'
+  dbPoolMaxIdle: '1'
+  dbPoolReapIntervalSeconds: '15'
   dbMaxMessageSizeBytes: '67108864'
   healthDbCheckTtlSeconds: '5'
 
@@ -234,7 +246,7 @@ server:
     clientPerSecond: '100'
     maxClients: '10000'
   workers:
-    db: '16'
+    db: '4'
     blocking: '8'
     tool: '64'
     llm: '64'
@@ -458,33 +470,27 @@ global:
 models:
   # Root cause analysis
   RCA_INVESTIGATOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  RCA_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   RCA_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
 
   # Runbook execution
   RUNBOOK_EXECUTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  RUNBOOK_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   RUNBOOK_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
 
   # Periodic (scheduled) runbook
   PERIODIC_RUNBOOK_EXECUTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  PERIODIC_RUNBOOK_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   PERIODIC_RUNBOOK_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
 
   # Runbook validation
   RUNBOOK_VALIDATION_EXECUTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  RUNBOOK_VALIDATION_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   RUNBOOK_VALIDATION_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
 
   # Interactive SRE chat
   SRE_CHAT_EXECUTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  SRE_CHAT_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   SRE_CHAT_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   SRE_CHAT_TITLE_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
 
   # MCP tool-calling agent
   MCP_TOOL_CALLING_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  MCP_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
   MCP_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
 
 # -- Thinking budget per agent loop: how many tokens that loop's model may think before each reply,

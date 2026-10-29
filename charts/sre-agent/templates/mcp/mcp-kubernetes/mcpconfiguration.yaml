@@ -70,12 +70,15 @@ spec:
     - Spot nodes (kubernetes.azure.com/scalesetpriority=spot, cloud.google.com/gke-spot=true) are replaced often and their pods restart elsewhere.
     - A Node holds status.conditions (Ready; MemoryPressure, DiskPressure, PIDPressure), capacity and allocatable (what pods are scheduled against), spec.taints and spec.unschedulable, status.nodeInfo, and pool, instance-type and zone labels. nodes_top gives current CPU and memory; nodes_stats_summary adds filesystem use, per-pod working set and network counters. Node events: events_list with involvedObject.kind=Node, cluster-wide.
     Going deeper:
+    - whether the whole application is down or only one part of it: the other workloads that share its app.kubernetes.io/instance label or its name prefix in the namespace, such as a database's data members beside its arbiter or a broker beside its controller, with resources_list for StatefulSets and Deployments and their replicas, because the part reported failing may not be the part that stops users
     - why a pod is new: its creationTimestamp and spec.nodeName against the node's creationTimestamp, the owner's revisions, and eviction or preemption events while they last.
     - what a crashed container printed: pods_log with previous set and a small tail.
     - what changed in a rollout: the pod template of the current ReplicaSet or ControllerRevision against the previous one.
     - why a pod was evicted, killed or will not schedule: its node's conditions, allocatable and taints, then nodes_top, and nodes_stats_summary for disk or per-pod memory.
     - which chart a workload came from: meta.helm.sh/release-name and release-namespace annotations, then helm_list in that namespace.
     Limits:
+    - resources_list and pods_list with no namespace, labelSelector or fieldSelector return every object of that kind in the cluster: all Deployments, all ConfigMaps or all pods have measured 110,000 to 210,000 characters, which arrives as a saved file instead of in the conversation. Workaround: pass namespace with a labelSelector taken from the workload's own spec.selector.matchLabels, or a fieldSelector such as metadata.name=<name>, and read one object with resources_get.
+    - resources_list for kind Event returns every event of the namespace with its full object, over 100,000 characters in a busy namespace. Workaround: events_list with namespace and the fieldSelector involvedObject.name=<name>.
     - A long log comes back saved to a file with a preview. Workaround: a smaller tail, or a line filter on the log server.
     - nodes_stats_summary, nodes_log and nodes_top can be refused or time out when the kubelet is unreachable or the platform closes that route; that is the read failing, not the node being healthy. nodes_log answering with a list of file names is the same: the file was not read.
     - helm_list shows only each release's latest revision, and only when deployed or failed. Workaround: resources_list kind Secret with label selector owner=helm,name=<release> lists every revision with its status.
