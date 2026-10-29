@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Validates a tag-triggered chart release:
 #   1. Tag must be X.Y.Z (stable) or X.Y.Z-(rc|alpha|beta).N (pre-release).
-#      No 'v' prefix — semver doesn't require one, and dropping it makes the
+#      No 'v' prefix: semver doesn't require one, and dropping it makes the
 #      git tag identical to the Helm chart version.
 #   2. charts/sre-agent/Chart.yaml version must match the tag exactly.
 #   3. Tagged commit must be reachable from the right branch:
