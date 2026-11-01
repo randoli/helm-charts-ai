@@ -182,3 +182,181 @@ data:
         cache_read_cost:     0
         cache_write_5m_cost: 0
         cache_write_1h_cost: 0
+      # model profile families
+      - provider: bedrock
+        id: us.anthropic.claude-haiku-4-5-20251001-v1:0
+        input_cost:          0.0000011
+        output_cost:         0.0000055
+        cache_read_cost:     0.00000011
+        cache_write_5m_cost: 0.000001375
+        cache_write_1h_cost: 0.0000022
+        context_window:      200000
+        max_output_tokens:   16000
+      - provider: bedrock
+        id: us.anthropic.claude-sonnet-5-5
+        input_cost:          0.0000022
+        output_cost:         0.000011
+        cache_read_cost:     0.00000011
+        cache_write_5m_cost: 0.00000275
+        cache_write_1h_cost: 0.0000044
+        context_window:      200000
+        max_output_tokens:   16000
+        supports_tool_choice: false
+      - provider: bedrock
+        id: us.anthropic.claude-haiku-5-5
+        input_cost:          0.00000055
+        output_cost:         0.00000275
+        cache_read_cost:     0.000000055
+        cache_write_5m_cost: 0.0000006875
+        cache_write_1h_cost: 0.0000011
+        context_window:      200000
+        max_output_tokens:   16000
+      - provider: bedrock
+        id: us.amazon.nova-2-lite-v1:0
+        input_cost:          0.00000033
+        output_cost:         0.00000275
+        cache_read_cost:     0.0000000825
+        cache_write_5m_cost: 0
+        cache_write_1h_cost: 0
+        context_window:      200000
+        max_output_tokens:   16000
+        supports_prompt_cache: false
+      - provider: bedrock
+        id: mistral.mistral-large-3-675b-instruct
+        input_cost:          0.0000005
+        output_cost:         0.0000015
+        cache_read_cost:     0
+        cache_write_5m_cost: 0
+        cache_write_1h_cost: 0
+        context_window:      200000
+        max_output_tokens:   16000
+        supports_tool_choice: false
+      - provider: bedrock
+        id: deepseek.v3.2
+        input_cost:          0.00000062
+        output_cost:         0.00000185
+        cache_read_cost:     0
+        cache_write_5m_cost: 0
+        cache_write_1h_cost: 0
+        context_window:      160000
+        max_output_tokens:   8000
+        supports_tool_choice: false
+      - provider: bedrock
+        id: qwen.qwen3-235b-a22b-2507-v1:0
+        input_cost:          0.00000022
+        output_cost:         0.00000088
+        cache_read_cost:     0
+        cache_write_5m_cost: 0
+        cache_write_1h_cost: 0
+        context_window:      200000
+        max_output_tokens:   8000
+        supports_tool_choice: false
+      - provider: bedrock
+        id: openai.gpt-oss-120b-1:0
+        input_cost:          0.00000015
+        output_cost:         0.0000006
+        cache_read_cost:     0
+        cache_write_5m_cost: 0
+        cache_write_1h_cost: 0
+        context_window:      128000
+        max_output_tokens:   16000
+        supports_tool_choice: false
+      - provider: bedrock
+        id: openai.gpt-oss-20b-1:0
+        input_cost:          0.00000007
+        output_cost:         0.0000003
+        cache_read_cost:     0
+        cache_write_5m_cost: 0
+        cache_write_1h_cost: 0
+        context_window:      128000
+        max_output_tokens:   16000
+        supports_tool_choice: false
+      - provider: anthropic
+        id: claude-sonnet-5-5
+        input_cost:          0.000002
+        output_cost:         0.00001
+        cache_read_cost:     0.0000001
+        cache_write_5m_cost: 0.0000025
+        cache_write_1h_cost: 0.000004
+        context_window:      200000
+        max_output_tokens:   16000
+        supports_tool_choice: false
+      - provider: anthropic
+        id: claude-haiku-5-5
+        input_cost:          0.0000005
+        output_cost:         0.0000025
+        cache_read_cost:     0.00000005
+        cache_write_5m_cost: 0.000000625
+        cache_write_1h_cost: 0.000001
+        context_window:      200000
+        max_output_tokens:   16000
+      - provider: vertex
+        id: claude-sonnet-5-5
+        input_cost:          0.000002
+        output_cost:         0.00001
+        cache_read_cost:     0.0000001
+        cache_write_5m_cost: 0.0000025
+        cache_write_1h_cost: 0.000004
+        context_window:      200000
+        max_output_tokens:   16000
+        supports_tool_choice: false
+      - provider: vertex
+        id: claude-haiku-5-5
+        input_cost:          0.0000005
+        output_cost:         0.0000025
+        cache_read_cost:     0.00000005
+        cache_write_5m_cost: 0.000000625
+        cache_write_1h_cost: 0.000001
+        context_window:      200000
+        max_output_tokens:   16000
+      - provider: vertex
+        id: claude-haiku-4-5@20251001
+        input_cost:          0.000001
+        output_cost:         0.000005
+        cache_read_cost:     0.0000001
+        cache_write_5m_cost: 0.00000125
+        cache_write_1h_cost: 0.000002
+        context_window:      200000
+        max_output_tokens:   16000
+      - provider: vertex
+        id: gemini-4-argon
+        input_cost:          0.000004
+        output_cost:         0.00002
+        cache_read_cost:     0.0000002
+        cache_write_5m_cost: 0
+        cache_write_1h_cost: 0
+        context_window:      200000
+        max_output_tokens:   16000
+        supports_prompt_cache: false
+      - provider: vertex
+        id: gemini-3.5-flash-lite
+        input_cost:          0.0000003
+        output_cost:         0.0000025
+        cache_read_cost:     0.00000003
+        cache_write_5m_cost: 0
+        cache_write_1h_cost: 0
+        context_window:      200000
+        max_output_tokens:   16000
+        supports_prompt_cache: false
+      - provider: azure_deepseek
+        id: DeepSeek-V4-Pro
+        input_cost:          0.00000174
+        output_cost:         0.00000348
+        cache_read_cost:     0.000000145
+        cache_write_5m_cost: 0
+        cache_write_1h_cost: 0
+        context_window:      200000
+        max_output_tokens:   16000
+        supports_prompt_cache: false
+        supports_tool_choice: false
+      - provider: azure_deepseek
+        id: DeepSeek-V4-Flash
+        input_cost:          0.00000019
+        output_cost:         0.00000051
+        cache_read_cost:     0.000000028
+        cache_write_5m_cost: 0
+        cache_write_1h_cost: 0
+        context_window:      200000
+        max_output_tokens:   16000
+        supports_prompt_cache: false
+        supports_tool_choice: false

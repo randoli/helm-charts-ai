@@ -12,8 +12,15 @@ data:
   ENABLED_NAMESPACES: '{{ .Values.analysis.enabledNamespaces }}'
   LOG_LEVEL: '{{ .Values.logLevel }}'
   ENABLED_WORKLOADS: '{{ .Values.analysis.enabledWorkloads }}'
-  FLIGHTSQL_URL: '{{ tpl .Values.dataPlane.flightSqlUrl . }}'
+  DB_HOST: '{{ tpl (.Values.dataPlane.dbHost | toString) . }}'
+  DB_PORT: '{{ tpl (.Values.dataPlane.dbPort | toString) . }}'
+  DB_NAME: '{{ tpl (.Values.dataPlane.dbName | toString) . }}'
+  DB_SSLMODE: '{{ tpl (.Values.dataPlane.dbSslMode | toString) . }}'
+  DB_USER: '{{ .Values.dataPlane.dbUser }}'
   LLM_PROVIDER: '{{ .Values.llm.provider }}'
+  MODEL_FAMILY: '{{ .Values.llm.family }}'
+  MODEL_PRESET: '{{ .Values.llm.preset }}'
+  MODEL_EFFORT: '{{ .Values.llm.effort }}'
   LOG_LOKI_URL: '{{ tpl .Values.observability.lokiUrl . }}'
   LOG_PROVIDER : loki
   MCP_MAX_ITERATIONS : '{{ .Values.analysis.maxIterationsMCP }}'
@@ -40,7 +47,7 @@ data:
   # this estimate before it runs, then settles to the real cost. No reconcile loop.
   BUDGET_CALL_ESTIMATE_USD: '{{ .Values.analysis.budgetCallEstimateUsd }}'
 
-  # Every FlightSQL statement is bounded by these. The budget reservation runs on this path,
+  # Every database statement is bounded by these. The budget reservation runs on this path,
   # and a read that cannot answer in time refuses the LLM call, so keep them tight.
   DB_TIMEOUT_QUERY_S: '{{ .Values.dataPlane.dbTimeoutSeconds }}'
   DB_TIMEOUT_FETCH_S: '{{ .Values.dataPlane.dbTimeoutSeconds }}'
@@ -49,6 +56,7 @@ data:
   # Iteration caps per agent.
   RUNBOOK_MAX_ITERATIONS: '{{ .Values.analysis.maxIterationsRunbook }}'
   RUNBOOK_VALIDATION_MAX_ITERATIONS: '{{ .Values.analysis.maxIterationsRunbookValidation }}'
+  PERIODIC_RUNBOOK_MAX_ITERATIONS: '{{ .Values.analysis.maxIterationsPeriodicRunbook }}'
   COMPACTION_TRIGGER_PCT: '{{ .Values.analysis.compactionTriggerPct }}'
   COMPACTION_KEEP_RECENT_PCT: '{{ .Values.analysis.compactionKeepRecentPct }}'
   SRE_CHAT_MAX_ITERATIONS: '{{ .Values.sreChat.maxIterations }}'
@@ -100,7 +108,6 @@ data:
   DB_POOL_IDLE_TIMEOUT_S: '{{ .Values.dataPlane.dbPoolIdleTimeoutSeconds }}'
   DB_POOL_MAX_IDLE: '{{ .Values.dataPlane.dbPoolMaxIdle }}'
   DB_POOL_REAP_INTERVAL_S: '{{ .Values.dataPlane.dbPoolReapIntervalSeconds }}'
-  DB_MAX_MSG_SIZE_S: '{{ .Values.dataPlane.dbMaxMessageSizeBytes }}'
   HEALTH_DB_CHECK_TTL_S: '{{ .Values.dataPlane.healthDbCheckTtlSeconds }}'
   SERVER_BACKLOG: '{{ .Values.server.backlog }}'
   SERVER_LIMIT_CONCURRENCY: '{{ .Values.server.limitConcurrency }}'
@@ -130,14 +137,8 @@ data:
   MCP_SESSION_IDLE_S: '{{ .Values.mcpClient.sessionIdleSeconds }}'
   MCP_DEFAULT_MAX_CALLS: '{{ .Values.mcpClient.defaultMaxCalls }}'
 
-  # Model per role: each agent's loop model, and the chat's title model. Each id must also appear
-  # in the models.yaml pricing file mounted by this chart.
-  {{- range $role, $model := .Values.models }}
-  {{ $role }}: '{{ $model }}'
-  {{- end }}
-
-  # Thinking budget per agent loop. Empty by default, so every agent runs with thinking off;
-  # set thinkingBudgets in values.yaml to turn it on.
+  # Per-loop thinking budget overrides. Every loop not listed here takes its budget from
+  # MODEL_EFFORT.
   {{- range $key, $budget := .Values.thinkingBudgets }}
   {{ $key }}: '{{ $budget }}'
   {{- end }}

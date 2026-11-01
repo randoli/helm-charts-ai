@@ -6,12 +6,12 @@
 #     defaults in `observability:` and `dataPlane:` already point at the
 #     umbrella's service names, so only `analysis.enabledNamespaces` must be set.
 #   * Standalone: override EVERY value in `observability:` and `dataPlane:` to
-#     point at your own Prometheus / Loki / Tempo / OTel collector / Flight
-#     SQL / callback endpoints, and create the required secrets (see readme).
+#     point at your own Prometheus / Loki / Tempo / OTel collector /
+#     PostgreSQL / callback endpoints, and create the required secrets (see readme).
 #
 # Model pricing is NOT a value here: it ships as templates/models-configmap.yaml and is mounted at
-# /etc/agentic-ai/models.yaml. Every id in `models:` below must have an entry there, or that call is
-# rejected as an unsupported model.
+# /etc/agentic-ai/models.yaml. Every model the llm profile maps to has an entry there; a model without
+# one is rejected as unsupported.
 # ============================================================================
 
 image:
@@ -62,6 +62,7 @@ analysis:
   # both investigates AND acts.
   maxIterationsRunbook: '35'
   maxIterationsRunbookValidation: '11'
+  maxIterationsPeriodicRunbook: '15'
 
   # -- Share of the model's context window, in percent, at which the older part of an agent's history
   # is compacted into one summary before the next call. The window of each model comes from the models
@@ -140,6 +141,27 @@ llm:
   # azure_meta, azure_mistral or azure_deepseek. See the readme for what each one reads.
   provider: aws
 
+  # -- Model family on that provider. Empty uses the provider's default. The models each family maps
+  # to are in docs/model_profiles.md:
+  # aws: claude (default), nova, mistral, deepseek, qwen, gpt-oss; anthropic: claude;
+  # vertex: claude (default), gemini; openai and azure_openai: gpt; azure_deepseek: deepseek.
+  family: ''
+
+  # -- balanced: a strong model on the agent loops and the family's lighter model on compaction
+  # summaries and chat titles (claude: Sonnet 4.5 and Haiku 4.5). quality: the family's strongest model
+  # on every role (claude: Sonnet 5.5). Empty means balanced. The versions are chosen in the agent.
+  preset: ''
+
+  # -- How hard the agent loops think before each reply: off, low, medium or high. Applied only when
+  # the loop model can think (Claude 4.5); otherwise thinking stays off and the agent says so in one
+  # startup line.
+  effort: 'off'
+
+  # -- Name of a pre-existing secret holding a Google service account key file under the key
+  # key.json, for llm.provider vertex. Mounted at /var/secrets/google/key.json and pointed to by
+  # GOOGLE_APPLICATION_CREDENTIALS. Leave empty when the pod gets Google credentials another way.
+  googleCredentialsSecretName: ''
+
   # -- AWS region used for Bedrock calls.
   region: us-east-1
 
@@ -210,26 +232,34 @@ observability:
 dataPlane:
   agentCallbackUrl: http://randoli-agent:8080/
 
-  # -- Arrow Flight SQL endpoint of the data plane's analytics store.
-  flightSqlUrl: grpc+tcp://randoli-agent:31337
+  # -- PostgreSQL server of the data plane (the umbrella chart's randoli-db).
+  # Values are rendered through `tpl`.
+  dbHost: randoli-db
+  dbPort: '5432'
+  dbName: randoli
+  # -- libpq sslmode: disable, require, verify-ca, verify-full
+  dbSslMode: disable
+  # -- Database role of the SRE agent (read access to the data plane tables,
+  # write access to its audit and chat tables).
+  dbUser: sre_agent
 
   # -- Base URL of the OpenCost service the agent queries for cost data.
   opencostUrl: http://opencost.randoli-agents.svc.cluster.local:8081
 
-  # -- Name of a pre-existing secret holding the Flight SQL credentials
-  # (keys: username, password). Created by the data plane chart, NOT by this
-  # chart.
+  # -- Name of a pre-existing secret holding the database password (rendered
+  # through `tpl`). Created by the data plane chart, NOT by this chart.
   databaseSecretName: randoli-agent-db
+  # -- Key of the SRE agent's password in databaseSecretName.
+  databasePasswordKey: sre-agent-password
 
-  # -- Seconds any single Flight SQL statement may take. The per-call budget reservation runs
+  # -- Seconds any single database statement may take. The per-call budget reservation runs
   # on this path and fails CLOSED, so a slow store suppresses LLM calls rather than hanging.
   dbTimeoutSeconds: '10'
-  dbPoolMaxConnections: '4'
-  dbPoolAcquireTimeoutSeconds: '30'
-  dbPoolIdleTimeoutSeconds: '60'
-  dbPoolMaxIdle: '1'
+  dbPoolMaxConnections: '16'
+  dbPoolAcquireTimeoutSeconds: '10'
+  dbPoolIdleTimeoutSeconds: '300'
+  dbPoolMaxIdle: '16'
   dbPoolReapIntervalSeconds: '15'
-  dbMaxMessageSizeBytes: '67108864'
   healthDbCheckTtlSeconds: '5'
 
 server:
@@ -246,7 +276,7 @@ server:
     clientPerSecond: '100'
     maxClients: '10000'
   workers:
-    db: '4'
+    db: '16'
     blocking: '8'
     tool: '64'
     llm: '64'
@@ -384,11 +414,11 @@ guardrails:
       matchLabels:
         app.kubernetes.io/name: randoli-agent
         app.kubernetes.io/component: randoli-agent
-    - name: randoli-fsqld
+    - name: randoli-db
       kind: StatefulSet
       matchLabels:
         app.kubernetes.io/name: randoli-agent
-        app.kubernetes.io/component: randoli-fsqld
+        app.kubernetes.io/component: randoli-db
     - name: randoli-sre-agent
       kind: Deployment
       matchLabels:
@@ -467,36 +497,11 @@ global:
     enabled: false
 
 
-models:
-  # Root cause analysis
-  RCA_INVESTIGATOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  RCA_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-
-  # Runbook execution
-  RUNBOOK_EXECUTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  RUNBOOK_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-
-  # Periodic (scheduled) runbook
-  PERIODIC_RUNBOOK_EXECUTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  PERIODIC_RUNBOOK_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-
-  # Runbook validation
-  RUNBOOK_VALIDATION_EXECUTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  RUNBOOK_VALIDATION_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-
-  # Interactive SRE chat
-  SRE_CHAT_EXECUTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  SRE_CHAT_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  SRE_CHAT_TITLE_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-
-  # MCP tool-calling agent
-  MCP_TOOL_CALLING_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  MCP_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-
-# -- Thinking budget per agent loop: how many tokens that loop's model may think before each reply,
-# between tool calls too. Only Claude on aws, anthropic and vertex can think.
-# Thinking is OFF: every agent runs with a budget of 0, the agent's default when its key is not set.
-# To turn thinking on for an agent, uncomment its line below (the value shown is the tested budget)
+# -- Per-loop thinking budget overrides: how many tokens that loop's model may think before each
+# reply, between tool calls too. llm.effort sets every loop's budget at once; a key set here replaces
+# the budget of that one loop only. Only Claude on aws, anthropic and vertex can think.
+# Empty by default, so the budgets come from llm.effort, which is off.
+# To override one loop, uncomment its line below (the value shown is the medium effort budget)
 # and change `thinkingBudgets: {}` to `thinkingBudgets:`. A value above 0 must be at least 1024 and
 # below the model's max_output_tokens (16000 for Sonnet 4.5).
 # The agent reads these at startup, so restart it after a change.

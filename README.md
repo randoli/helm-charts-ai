@@ -16,7 +16,7 @@
 - [Choosing the models](#choosing-the-models)
   - [The LLM provider](#the-llm-provider)
   - [The pricing file, and what a model can do](#the-pricing-file-and-what-a-model-can-do)
-  - [One model per role](#one-model-per-role)
+  - [Picking models: provider, family, preset](#picking-models-provider-family-preset)
   - [Thinking and temperature](#thinking-and-temperature)
 - [Further configuration](#further-configuration)
 - [Every setting](#every-setting)
@@ -68,7 +68,7 @@ NOTE: replace <namespace1\,namespace2> with a list of namespaces which can be an
 
 The SRE agent is also bundled into the `randoli-agent` umbrella chart as an optional
 dependency. When installed this way, all endpoint configuration (Prometheus, Loki, Tempo,
-OTel collector, agent callback/Flight SQL URLs) is provided by the umbrella chart:
+OTel collector, agent callback URL, PostgreSQL connection) is provided by the umbrella chart:
 
 ```
 helm install randoli randoli/randoli-agent -n randoli-agents \
@@ -233,8 +233,9 @@ per agent, and the toolset dump lists every tool the agent bound, tagged by orig
 ### The LLM provider
 
 `llm.provider` decides which vendor every call goes to. The chart defaults to AWS Bedrock, which is
-what the Prerequisites secret above is for. Each provider reads its own credentials and needs its
-own model ids, so switching one means setting both.
+what the Prerequisites secret above is for. Each provider reads its own credentials and offers its
+own model families, so switching one means its credentials and, when its default family is not the
+one you want, `llm.family`.
 
 | `llm.provider` | Serves | Credentials it reads |
 |---|---|---|
@@ -249,7 +250,7 @@ Put that provider's keys in the secret named by `llm.credentialsSecretName`, the
 Bedrock keys go in: the whole secret is loaded into the pod's environment, so whichever keys a
 provider needs are the keys you put there. What each provider does differently - how it marks a
 cached prompt, whether it takes a forced tool call, where its timeout goes - the agent handles, so
-nothing beyond credentials and model ids changes per vendor.
+nothing beyond credentials and the family changes per vendor.
 
 The four Azure AI Foundry providers in the last row need the `langchain-azure-ai` package in the
 agent image. If it is not there, the agent says so at startup and stops; the rest of the table
@@ -258,7 +259,7 @@ works with the image as shipped.
 ### The pricing file, and what a model can do
 
 `models.yaml` is mounted from a ConfigMap this chart renders, and it is both the price list and the
-allow list: a model that is not in it cannot be used, whatever the role keys say. Only the active
+allow list: a model that is not in it cannot be used, whatever the profile says. Only the active
 provider's entries are built, so the file can hold every provider at once.
 
 ```yaml
@@ -292,48 +293,28 @@ Two optional flags per model cover the things that are not about price:
 | `supports_prompt_cache` | whether any cache cost above is non-zero | whether this model is sent cache markers at all. A marker a model does not accept fails the whole call, so a model priced with no caching is simply never sent one |
 | `supports_tool_choice` | `true` | whether the agent may force a tool call when it needs an answer in a fixed shape. Bedrock's Converse API only accepts this for some model families; set it to `false` for the rest and the agent asks instead of forcing, which still works |
 
-### One model per role
+### Picking models: provider, family, preset
 
-Each agent runs its loop on one model, named by a key in the `models` map: `RCA_INVESTIGATOR_MODEL`,
-`RUNBOOK_EXECUTOR_MODEL`, `PERIODIC_RUNBOOK_EXECUTOR_MODEL`, `RUNBOOK_VALIDATION_EXECUTOR_MODEL`,
-`SRE_CHAT_EXECUTOR_MODEL` and `MCP_TOOL_CALLING_MODEL`. Each agent also has one more key with the
-same prefix: `<prefix>_COMPACTION_MODEL` writes the summary when the history gets too long, for example
-`RCA_COMPACTION_MODEL`. It returns a fixed shape, so point it at a model that supports a forced tool
-call, such as Claude. The answer comes from the loop's last reply, with no model call after it. `SRE_CHAT_TITLE_MODEL` names the chat's titles and can be a cheaper model. Each
-key becomes an env var of the same name.
+Three enum values pick every model: `llm.provider`, `llm.family` (such as `claude`, `gpt`,
+`gemini`) and `llm.preset`. `balanced`, the default, puts a strong model on the agent loops and the
+family's lighter model on compaction summaries and chat titles; `quality` puts the family's strongest
+model on every role. The model versions are chosen in the agent's map, not in the chart. Left empty
+on `aws`, the loops get `us.anthropic.claude-sonnet-4-5-20250929-v1:0` and compaction and titles
+`us.anthropic.claude-haiku-4-5-20251001-v1:0`. `llm.effort` (`off`, `low`, `medium`, `high`) sets
+the agent loops' thinking, off by default.
 
 ```
-helm upgrade sre-agent randoli/sre-agent -n randoli-agents \
-  --set llm.provider=anthropic \
-  --set models.SRE_CHAT_EXECUTOR_MODEL=claude-sonnet-4-5-20250929 \
-  --set models.SRE_CHAT_TITLE_MODEL=claude-haiku-4-5-20251001
+helm upgrade sre-agent randoli/sre-agent -n randoli-agents --set llm.preset=quality
 ```
 
-Every id set there must also appear in `models.yaml` for the active provider. If one does not, the
-agent says so in a single startup line naming every role that is wrong, which is what you want the
-first time you change provider and half the keys still hold the old ids.
+Every combination per provider, the models each role gets, other model ids each family can move to,
+and where each provider's credentials go are in [docs/model_profiles.md](docs/model_profiles.md).
+
+The chart sets models only through this profile; it has no per-role model keys.
+`thinkingBudgets.<LOOP>_THINKING_BUDGET` overrides one loop's thinking budget and leaves the rest on
+`llm.effort`; it is empty by default.
 
 ### Thinking and temperature
-
-Each agent's loop model can think before each reply, between tool calls too. The `thinkingBudgets`
-map sets how many tokens it may think, one key per loop: `RCA_INVESTIGATOR_THINKING_BUDGET`,
-`RUNBOOK_EXECUTOR_THINKING_BUDGET`, `PERIODIC_RUNBOOK_EXECUTOR_THINKING_BUDGET`,
-`RUNBOOK_VALIDATION_EXECUTOR_THINKING_BUDGET`, `SRE_CHAT_EXECUTOR_THINKING_BUDGET` and
-`MCP_TOOL_CALLING_THINKING_BUDGET`. Only Claude on `aws`, `anthropic` and `vertex` can think. Thinking
-is billed as output tokens and makes each reply slower.
-
-Thinking is off by default: `thinkingBudgets` is empty, so every agent runs with a budget of `0`. The
-tested budgets are kept as commented lines under `thinkingBudgets` in `values.yaml` (6000 for RCA,
-4000 for the runbook agents and the chat, 2048 for the MCP agent). To turn thinking on for an agent,
-uncomment its line and change `thinkingBudgets: {}` to `thinkingBudgets:`, or set it on the command
-line. A budget above `0` must be at least 1024 and below the model's `max_output_tokens` (16000 for
-Sonnet 4.5); the agent names a budget that breaks this in one startup line. The agent reads these at
-startup, so restart it after a change.
-
-```
-helm upgrade sre-agent randoli/sre-agent -n randoli-agents \
-  --set thinkingBudgets.SRE_CHAT_EXECUTOR_THINKING_BUDGET=4000
-```
 
 `llm.temperature` is the temperature of every model call that does not think, `0.00000001` by default.
 Set it to `none` to send no temperature, for a model that rejects one. A thinking model is always sent
@@ -358,8 +339,13 @@ helm upgrade sre-agent randoli/sre-agent -n randoli-agents \
   --set observability.otelExporterEndpoint=http://my-otel-collector:4317 \
   --set observability.traceLoopBaseUrl=http://my-otel-collector:4318 \
   --set dataPlane.agentCallbackUrl=http://my-agent:8080/ \
-  --set dataPlane.flightSqlUrl=grpc+tcp://my-agent:31337
+  --set dataPlane.dbHost=my-postgres.my-namespace.svc \
+  --set dataPlane.dbSslMode=require \
+  --set dataPlane.databaseSecretName=my-db-secret
 ```
+
+  The database password is read from key `sre-agent-password` of `dataPlane.databaseSecretName`
+  (`dataPlane.databasePasswordKey`); the role is `dataPlane.dbUser` (`sre_agent`).
 
 - **LLM call timeouts** are split in two, because the two kinds of call are nothing alike. A big
   reasoning call can legitimately run for minutes (`llm.readTimeoutSeconds`, 240s), while the small
@@ -393,9 +379,16 @@ These have no safe default. The agent cannot start without them.
 | Variable | Chart value | Default | What it does |
 |---|---|---|---|
 | `LLM_PROVIDER` | `llm.provider` | `aws` | Which provider builds the models. `aws` means Bedrock |
+| `MODEL_FAMILY` | `llm.family` | `''`, the provider's default family | The model family, such as `claude` or `gpt`. See [docs/model_profiles.md](docs/model_profiles.md) |
+| `MODEL_PRESET` | `llm.preset` | `''`, meaning `balanced` | `balanced` (lighter model on compaction and chat titles) or `quality` (the family's strongest model on every role) |
+| `MODEL_EFFORT` | `llm.effort` | `off` | Every agent loop's thinking: `off`, `low`, `medium` or `high`. Applied only when the loop model is a Claude 4.5 model |
+| `GOOGLE_APPLICATION_CREDENTIALS` | set to `/var/secrets/google/key.json` when `llm.googleCredentialsSecretName` is set | | The Vertex service account key file, mounted from that Secret's `key.json` |
 | `AWS_REGION` | `llm.region` | `us-east-1` | Bedrock region |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | a Secret the deployment mounts | | Bedrock credentials. Other providers read their own keys instead |
-| `FLIGHTSQL_URL` | `dataPlane.flightSqlUrl` | `grpc+tcp://randoli-agent:31337` | The platform datastore, which also holds the audit and chat tables |
+| `DB_HOST`, `DB_PORT`, `DB_NAME` | `dataPlane.dbHost`, `dataPlane.dbPort`, `dataPlane.dbName` | `randoli-db`, `5432`, `randoli` | The platform's PostgreSQL datastore, which also holds the audit and chat tables |
+| `DB_SSLMODE` | `dataPlane.dbSslMode` | `disable` | libpq sslmode: `disable`, `require`, `verify-ca` or `verify-full` |
+| `DB_USER` | `dataPlane.dbUser` | `sre_agent` | The agent's database role |
+| `DB_PASSWORD` | `dataPlane.databaseSecretName`, `dataPlane.databasePasswordKey` | `randoli-agent-db`, `sre-agent-password` | Read from this existing secret |
 | `AGENT_CALLBACK_URL` | `dataPlane.agentCallbackUrl` | `http://randoli-agent:8080/` | Where reports are POSTed when a request omits `callbackUrl` |
 | `PROMETHEUS_URL` | `observability.prometheusUrl` | `http://randoli-obs-prometheus:80` | Metrics backend |
 | `TEMPO_URL` | `observability.tempoUrl` | `http://randoli-obs-tempo:3200` | Trace backend |
@@ -436,6 +429,7 @@ These have no safe default. The agent cannot start without them.
 | `RCA_INVESTIGATOR_MAX_ITERATIONS` | `analysis.maxIterationsRCA` | `25` | Model calls one RCA run may make. The last one is asked for the answer with tools unbound |
 | `RUNBOOK_MAX_ITERATIONS` | `analysis.maxIterationsRunbook` | `35` | The same for the runbook agent |
 | `RUNBOOK_VALIDATION_MAX_ITERATIONS` | `analysis.maxIterationsRunbookValidation` | `11` | The same for runbook validation |
+| `PERIODIC_RUNBOOK_MAX_ITERATIONS` | `analysis.maxIterationsPeriodicRunbook` | `15` | The same for the periodic runbook |
 | `MCP_MAX_ITERATIONS` | `analysis.maxIterationsMCP` | `25` | The same for the MCP server agents, such as ticketing |
 | `RCA_MIN_CONFIDENCE_FOR_FIXES` | `analysis.minConfidenceForFixesRCA` | `8` | On the 1 to 9 scale, the lowest RCA confidence that still carries fixes. Below it the report drops them |
 | `AGENT_TOOL_CONCURRENCY` | `analysis.toolConcurrency` | `8` | Tool calls one step runs at once. Keep it at or below `TOOL_POOL_WORKERS` |
@@ -503,7 +497,7 @@ One pool per server and credential set. Full detail in the agent repo's `docs/mc
 | `OUTBOUND_HTTP_TIMEOUT_S` | `server.outboundHttpTimeoutSeconds` | `30` | Timeout on the agent's own outbound HTTP, such as posting a report |
 | `LLM_POOL_WORKERS` | `server.workers.llm` | `64` | Threads for model calls. It also sizes the event loop's default executor, which streamed calls run on |
 | `TOOL_POOL_WORKERS` | `server.workers.tool` | `64` | Threads available to run tool calls. The ceiling `AGENT_TOOL_CONCURRENCY` must not exceed |
-| `DB_POOL_WORKERS` | `server.workers.db` | `4` | Threads for database calls. Keep it equal to `dataPlane.dbPoolMaxConnections` |
+| `DB_POOL_WORKERS` | `server.workers.db` | `16` | Threads for database calls. Keep it equal to `dataPlane.dbPoolMaxConnections` |
 | `BLOCKING_POOL_WORKERS` | `server.workers.blocking` | `8` | Threads for other blocking work, such as writing saved results and reading cluster RBAC |
 | `RATE_LIMIT_ENABLED` | `server.rateLimit.enabled` | `true` | Per-endpoint and per-client limits. Over a limit answers 429 with `Retry-After` |
 | `RATE_LIMIT_ENDPOINT_BURST` | `server.rateLimit.endpointBurst` | `2000` | Requests one endpoint takes at once, from all clients together |
@@ -516,13 +510,12 @@ One pool per server and credential set. Full detail in the agent repo's `docs/mc
 
 | Variable | Chart value | Default | What it does |
 |---|---|---|---|
-| `DB_POOL_MAX_CONNECTIONS` | `dataPlane.dbPoolMaxConnections` | `4` | Database connections open at once across the process, and so statements running at once |
-| `DB_POOL_ACQUIRE_TIMEOUT_S` | `dataPlane.dbPoolAcquireTimeoutSeconds` | `30` | How long a statement waits for a free connection before failing |
-| `DB_POOL_IDLE_TIMEOUT_S` | `dataPlane.dbPoolIdleTimeoutSeconds` | `60` | Idle time after which a connection is closed |
-| `DB_POOL_MAX_IDLE` | `dataPlane.dbPoolMaxIdle` | `1` | Connections kept open between uses; the rest are closed as soon as they are handed back |
+| `DB_POOL_MAX_CONNECTIONS` | `dataPlane.dbPoolMaxConnections` | `16` | Database connections open at once across the process, and so statements running at once |
+| `DB_POOL_ACQUIRE_TIMEOUT_S` | `dataPlane.dbPoolAcquireTimeoutSeconds` | `10` | How long a statement waits for a free connection before failing |
+| `DB_POOL_IDLE_TIMEOUT_S` | `dataPlane.dbPoolIdleTimeoutSeconds` | `300` | Idle time after which a connection is closed |
+| `DB_POOL_MAX_IDLE` | `dataPlane.dbPoolMaxIdle` | `16` | Connections kept open between uses; the rest are closed as soon as they are handed back |
 | `DB_POOL_REAP_INTERVAL_S` | `dataPlane.dbPoolReapIntervalSeconds` | `15` | How often a background thread closes idle connections past the idle timeout |
 | `DB_TIMEOUT_QUERY_S`, `DB_TIMEOUT_FETCH_S`, `DB_TIMEOUT_UPDATE_S` | `dataPlane.dbTimeoutSeconds` | `10` | Timeouts on a statement, on fetching its rows, and on a write. One value sets all three |
-| `DB_MAX_MSG_SIZE_S` | `dataPlane.dbMaxMessageSizeBytes` | `67108864` (64 MiB) | Largest FlightSQL message accepted |
 | `HEALTH_DB_CHECK_TTL_S` | `dataPlane.healthDbCheckTtlSeconds` | `5` | How long `/health` reuses its last database check instead of making a new one |
 
 ### Observability
@@ -538,15 +531,12 @@ One pool per server and credential set. Full detail in the agent repo's `docs/mc
 
 ### Models and thinking
 
-One key per role under `models:`, and one per loop role under `thinkingBudgets:`. Both are covered in
-[Choosing the models](#choosing-the-models).
+The profile picks every role's model, and `thinkingBudgets:` holds one key per loop role. Both are
+covered in [Choosing the models](#choosing-the-models).
 
 | Variable | Chart value | Default | What it does |
 |---|---|---|---|
-| `RCA_INVESTIGATOR_MODEL`, `RUNBOOK_EXECUTOR_MODEL`, `PERIODIC_RUNBOOK_EXECUTOR_MODEL`, `RUNBOOK_VALIDATION_EXECUTOR_MODEL`, `SRE_CHAT_EXECUTOR_MODEL`, `MCP_TOOL_CALLING_MODEL` | `models.<KEY>` | `us.anthropic.claude-sonnet-4-5-20250929-v1:0` | The model each agent's loop runs on |
-| `<prefix>_COMPACTION_MODEL` for `RCA`, `RUNBOOK`, `PERIODIC_RUNBOOK`, `RUNBOOK_VALIDATION`, `SRE_CHAT`, `MCP` | `models.<KEY>` | the same | The model that summarizes an agent's older history |
-| `SRE_CHAT_TITLE_MODEL` | `models.SRE_CHAT_TITLE_MODEL` | the same | The model that names a new chat |
-| `<role>_THINKING_BUDGET` | `thinkingBudgets.<KEY>` | unset, meaning `0` | Tokens that role's model may think before each reply. A value above `0` must be at least `1024` |
+| `<role>_THINKING_BUDGET` | `thinkingBudgets.<KEY>` | unset: the budget `llm.effort` gives that loop | Tokens that role's model may think before each reply. A value above `0` must be at least `1024` |
 
 ## Troubleshooting
 - If you see this log message: "The security token included in the request is invalid", check that the credentials are properly set and that they are exposed to the randoli-sre-agent pod as the following environment variables: AWS_ACCESS_KEY_ID, AWS_REGION and AWS_SECRET_ACCESS_KEY
