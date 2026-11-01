@@ -257,10 +257,10 @@ dataPlane:
   # -- Seconds any single database statement may take. The per-call budget reservation runs
   # on this path and fails CLOSED, so a slow store suppresses LLM calls rather than hanging.
   dbTimeoutSeconds: '10'
-  dbPoolMaxConnections: '16'
-  dbPoolAcquireTimeoutSeconds: '10'
-  dbPoolIdleTimeoutSeconds: '300'
-  dbPoolMaxIdle: '16'
+  dbPoolMaxConnections: '4'
+  dbPoolAcquireTimeoutSeconds: '30'
+  dbPoolIdleTimeoutSeconds: '60'
+  dbPoolMaxIdle: '1'
   dbPoolReapIntervalSeconds: '15'
   healthDbCheckTtlSeconds: '5'
 
@@ -278,7 +278,7 @@ server:
     clientPerSecond: '100'
     maxClients: '10000'
   workers:
-    db: '16'
+    db: '4'
     blocking: '8'
     tool: '64'
     llm: '64'

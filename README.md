@@ -500,7 +500,7 @@ One pool per server and credential set. Full detail in the agent repo's `docs/mc
 | `OUTBOUND_HTTP_TIMEOUT_S` | `server.outboundHttpTimeoutSeconds` | `30` | Timeout on the agent's own outbound HTTP, such as posting a report |
 | `LLM_POOL_WORKERS` | `server.workers.llm` | `64` | Threads for model calls. It also sizes the event loop's default executor, which streamed calls run on |
 | `TOOL_POOL_WORKERS` | `server.workers.tool` | `64` | Threads available to run tool calls. The ceiling `AGENT_TOOL_CONCURRENCY` must not exceed |
-| `DB_POOL_WORKERS` | `server.workers.db` | `16` | Threads for database calls. Keep it equal to `dataPlane.dbPoolMaxConnections` |
+| `DB_POOL_WORKERS` | `server.workers.db` | `4` | Threads for database calls. Keep it equal to `dataPlane.dbPoolMaxConnections` |
 | `BLOCKING_POOL_WORKERS` | `server.workers.blocking` | `8` | Threads for other blocking work, such as writing saved results and reading cluster RBAC |
 | `RATE_LIMIT_ENABLED` | `server.rateLimit.enabled` | `true` | Per-endpoint and per-client limits. Over a limit answers 429 with `Retry-After` |
 | `RATE_LIMIT_ENDPOINT_BURST` | `server.rateLimit.endpointBurst` | `2000` | Requests one endpoint takes at once, from all clients together |
@@ -513,10 +513,10 @@ One pool per server and credential set. Full detail in the agent repo's `docs/mc
 
 | Variable | Chart value | Default | What it does |
 |---|---|---|---|
-| `DB_POOL_MAX_CONNECTIONS` | `dataPlane.dbPoolMaxConnections` | `16` | Database connections open at once across the process, and so statements running at once |
-| `DB_POOL_ACQUIRE_TIMEOUT_S` | `dataPlane.dbPoolAcquireTimeoutSeconds` | `10` | How long a statement waits for a free connection before failing |
-| `DB_POOL_IDLE_TIMEOUT_S` | `dataPlane.dbPoolIdleTimeoutSeconds` | `300` | Idle time after which a connection is closed |
-| `DB_POOL_MAX_IDLE` | `dataPlane.dbPoolMaxIdle` | `16` | Connections kept open between uses; the rest are closed as soon as they are handed back |
+| `DB_POOL_MAX_CONNECTIONS` | `dataPlane.dbPoolMaxConnections` | `4` | Database connections open at once across the process, and so statements running at once |
+| `DB_POOL_ACQUIRE_TIMEOUT_S` | `dataPlane.dbPoolAcquireTimeoutSeconds` | `30` | How long a statement waits for a free connection before failing |
+| `DB_POOL_IDLE_TIMEOUT_S` | `dataPlane.dbPoolIdleTimeoutSeconds` | `60` | Idle time after which a connection is closed |
+| `DB_POOL_MAX_IDLE` | `dataPlane.dbPoolMaxIdle` | `1` | Connections kept open between uses; the rest are closed as soon as they are handed back |
 | `DB_POOL_REAP_INTERVAL_S` | `dataPlane.dbPoolReapIntervalSeconds` | `15` | How often a background thread closes idle connections past the idle timeout |
 | `DB_TIMEOUT_QUERY_S`, `DB_TIMEOUT_FETCH_S`, `DB_TIMEOUT_UPDATE_S` | `dataPlane.dbTimeoutSeconds` | `10` | Timeouts on a statement, on fetching its rows, and on a write. One value sets all three |
 | `HEALTH_DB_CHECK_TTL_S` | `dataPlane.healthDbCheckTtlSeconds` | `5` | How long `/health` reuses its last database check instead of making a new one |
