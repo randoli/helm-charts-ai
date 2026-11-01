@@ -141,16 +141,18 @@ llm:
   # azure_meta, azure_mistral or azure_deepseek. See the readme for what each one reads.
   provider: aws
 
-  # -- Model family on that provider. Empty uses the provider's default. The models each family maps
+  # -- Model family on that provider. Empty uses the provider's default. Change it with llm.provider:
+  # a family the provider does not offer stops the agent at start. The models each family maps
   # to are in docs/model_profiles.md:
   # aws: claude (default), nova, mistral, deepseek, qwen, gpt-oss; anthropic: claude;
   # vertex: claude (default), gemini; openai and azure_openai: gpt; azure_deepseek: deepseek.
-  family: ''
+  # azure_anthropic, azure_meta and azure_mistral have no families: set this and llm.preset to ''.
+  family: claude
 
   # -- balanced: a strong model on the agent loops and the family's lighter model on compaction
   # summaries and chat titles (claude: Sonnet 4.5 and Haiku 4.5). quality: the family's strongest model
   # on every role (claude: Sonnet 5.5). Empty means balanced. The versions are chosen in the agent.
-  preset: ''
+  preset: balanced
 
   # -- How hard the agent loops think before each reply: off, low, medium or high. Applied only when
   # the loop model can think (Claude 4.5); otherwise thinking stays off and the agent says so in one

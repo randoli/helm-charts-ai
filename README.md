@@ -234,8 +234,10 @@ per agent, and the toolset dump lists every tool the agent bound, tagged by orig
 
 `llm.provider` decides which vendor every call goes to. The chart defaults to AWS Bedrock, which is
 what the Prerequisites secret above is for. Each provider reads its own credentials and offers its
-own model families, so switching one means its credentials and, when its default family is not the
-one you want, `llm.family`.
+own model families, so switching one means its credentials and `llm.family`. `llm.family` defaults
+to `claude`, and a family the provider does not offer stops the agent at start. Set it to `''` for
+the provider's default family. `azure_anthropic`, `azure_meta` and `azure_mistral` have no families,
+so they need both `llm.family` and `llm.preset` set to `''`.
 
 | `llm.provider` | Serves | Credentials it reads |
 |---|---|---|
@@ -298,8 +300,9 @@ Two optional flags per model cover the things that are not about price:
 Three enum values pick every model: `llm.provider`, `llm.family` (such as `claude`, `gpt`,
 `gemini`) and `llm.preset`. `balanced`, the default, puts a strong model on the agent loops and the
 family's lighter model on compaction summaries and chat titles; `quality` puts the family's strongest
-model on every role. The model versions are chosen in the agent's map, not in the chart. Left empty
-on `aws`, the loops get `us.anthropic.claude-sonnet-4-5-20250929-v1:0` and compaction and titles
+model on every role. The model versions are chosen in the agent's map, not in the chart. With the
+chart's defaults on `aws`, `claude` and `balanced`, the loops get
+`us.anthropic.claude-sonnet-4-5-20250929-v1:0` and compaction and titles
 `us.anthropic.claude-haiku-4-5-20251001-v1:0`. `llm.effort` (`off`, `low`, `medium`, `high`) sets
 the agent loops' thinking, off by default.
 
@@ -379,8 +382,8 @@ These have no safe default. The agent cannot start without them.
 | Variable | Chart value | Default | What it does |
 |---|---|---|---|
 | `LLM_PROVIDER` | `llm.provider` | `aws` | Which provider builds the models. `aws` means Bedrock |
-| `MODEL_FAMILY` | `llm.family` | `''`, the provider's default family | The model family, such as `claude` or `gpt`. See [docs/model_profiles.md](docs/model_profiles.md) |
-| `MODEL_PRESET` | `llm.preset` | `''`, meaning `balanced` | `balanced` (lighter model on compaction and chat titles) or `quality` (the family's strongest model on every role) |
+| `MODEL_FAMILY` | `llm.family` | `claude` | The model family, such as `claude` or `gpt`. Empty uses the provider's default family. See [docs/model_profiles.md](docs/model_profiles.md) |
+| `MODEL_PRESET` | `llm.preset` | `balanced` | `balanced` (lighter model on compaction and chat titles) or `quality` (the family's strongest model on every role). Empty means `balanced` |
 | `MODEL_EFFORT` | `llm.effort` | `off` | Every agent loop's thinking: `off`, `low`, `medium` or `high`. Applied only when the loop model is a Claude 4.5 model |
 | `GOOGLE_APPLICATION_CREDENTIALS` | set to `/var/secrets/google/key.json` when `llm.googleCredentialsSecretName` is set | | The Vertex service account key file, mounted from that Secret's `key.json` |
 | `AWS_REGION` | `llm.region` | `us-east-1` | Bedrock region |
