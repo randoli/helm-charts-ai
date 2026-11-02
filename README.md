@@ -302,7 +302,7 @@ Three enum values pick every model: `llm.provider`, `llm.family` (such as `claud
 family's lighter model on compaction summaries and chat titles; `quality` puts the family's strongest
 model on every role. The model versions are chosen in the agent's map, not in the chart. With the
 chart's defaults on `aws`, `claude` and `balanced`, the loops get
-`us.anthropic.claude-sonnet-4-5-20250929-v1:0` and compaction and titles
+`us.anthropic.claude-sonnet-5-5` and compaction and titles
 `us.anthropic.claude-haiku-4-5-20251001-v1:0`. `llm.effort` (`off`, `low`, `medium`, `high`) sets
 the agent loops' thinking, off by default.
 
@@ -320,7 +320,7 @@ The chart sets models only through this profile; it has no per-role model keys.
 ### Thinking and temperature
 
 `llm.temperature` is the temperature of every model call that does not think, `0.00000001` by default.
-Set it to `none` to send no temperature, for a model that rejects one. A thinking model is always sent
+Set it to `none` to send no temperature. Sonnet 5.5 rejects one, so the agent never sends it one. A thinking model is always sent
 none.
 
 ## Further configuration
@@ -420,7 +420,7 @@ These have no safe default. The agent cannot start without them.
 | `LLM_CONNECT_TIMEOUT_S` | `llm.connectTimeoutSeconds` | `10` | Socket connect timeout |
 | `LLM_KEEP_WARM_S` | `llm.keepWarmSeconds` | `240` | One tiny call on this interval keeps the connection pool alive, because NAT gateways drop idle sockets at about 350s. `0` turns it off |
 | `LLM_STREAMING` | `llm.streaming` | `true` | Stream the loop call so the first token lands early |
-| `LLM_TEMPERATURE` | `llm.temperature` | `0.00000001` | Temperature of every call without thinking. Empty sends none, for a model that rejects it |
+| `LLM_TEMPERATURE` | `llm.temperature` | `0.00000001` | Temperature of every call without thinking. Empty sends none. Sonnet 5.5 rejects one, so it is never sent one |
 | `PROMPT_CACHE_TTL` | `llm.promptCacheTtl` | `1h` | Prompt cache lifetime. `1h` keeps it warm across a whole run |
 
 ### What an agent may investigate

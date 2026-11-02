@@ -38,7 +38,7 @@
 | `llm.family` | `MODEL_FAMILY` | `claude`, `gemini`, `gpt`, `nova`, `mistral`, `deepseek`, `qwen`, `gpt-oss`, as the provider offers them | the provider's default family |
 | `llm.preset` | `MODEL_PRESET` | `balanced`: a strong model on the agent loops and the family's lighter model on compaction and chat titles. `quality`: the family's strongest model on every role, Sonnet 5.5 for `claude` | `balanced` |
 
-The defaults give the agent loops `us.anthropic.claude-sonnet-4-5-20250929-v1:0` and compaction and
+The defaults give the agent loops `us.anthropic.claude-sonnet-5-5` and compaction and
 chat titles `us.anthropic.claude-haiku-4-5-20251001-v1:0`. Before profiles, the chart put Sonnet 4.5
 on every role; no combination does that now. A value outside its list stops the agent at start with a log line that names the
 setting and lists its valid values.
@@ -52,8 +52,9 @@ the chart and the roles get those models. We choose the model versions; a deploy
 provider, family and preset. The other ids listed under a family can replace its defaults in the
 agent's map, once the id is in `templates/models-configmap.yaml`.
 
-Our evals have only run with Sonnet 4.5 on every role, on `aws`; no preset has been run as a whole.
-Run them before relying on a combination.
+Our evals have run with Sonnet 4.5 on every role on `aws`, and Sonnet 5.5 on every role on `anthropic`
+for RCA cases. The `aws` default, Sonnet 5.5 with Haiku 4.5, has not been run as a whole. Run them before
+relying on a combination. The AWS identity the agent uses must be allowed both models.
 
 "Agent loops" means every agent loop role: `RCA_INVESTIGATOR_MODEL`, `RUNBOOK_EXECUTOR_MODEL`,
 `PERIODIC_RUNBOOK_EXECUTOR_MODEL`, `RUNBOOK_VALIDATION_EXECUTOR_MODEL`, `SRE_CHAT_EXECUTOR_MODEL` and
@@ -72,12 +73,13 @@ Set these keys, and the roles get these models. The default family on this provi
 | Keys | Agent loops get | Compaction and chat title get |
 |---|---|---|
 | `llm.provider: aws`<br>`llm.family: claude`<br>`llm.preset: quality` | `us.anthropic.claude-sonnet-5-5` | `us.anthropic.claude-sonnet-5-5` |
-| `llm.provider: aws`<br>`llm.family: claude`<br>`llm.preset: balanced` (default) | `us.anthropic.claude-sonnet-4-5-20250929-v1:0` | `us.anthropic.claude-haiku-4-5-20251001-v1:0` |
+| `llm.provider: aws`<br>`llm.family: claude`<br>`llm.preset: balanced` (default) | `us.anthropic.claude-sonnet-5-5` | `us.anthropic.claude-haiku-4-5-20251001-v1:0` |
 
 Other ids that can replace these defaults:
 
 - For the agent loops:
   - `global.anthropic.claude-sonnet-5-5`: 10% cheaper than `us.`, routed worldwide
+  - `us.anthropic.claude-sonnet-4-5-20250929-v1:0`: older and dearer per token, can think, legacy with an end of life of 2027-04-08
 - For compaction and chat titles:
   - `us.anthropic.claude-haiku-5-5`: newer generation, already priced
   - `global.anthropic.claude-haiku-5-5`: 10% cheaper than `us.`, routed worldwide

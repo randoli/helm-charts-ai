@@ -150,12 +150,13 @@ llm:
   family: claude
 
   # -- balanced: a strong model on the agent loops and the family's lighter model on compaction
-  # summaries and chat titles (claude: Sonnet 4.5 and Haiku 4.5). quality: the family's strongest model
+  # summaries and chat titles (claude on aws: Sonnet 5.5 and Haiku 4.5; on anthropic and vertex: Sonnet 4.5
+  # and Haiku 4.5). quality: the family's strongest model
   # on every role (claude: Sonnet 5.5). Empty means balanced. The versions are chosen in the agent.
   preset: balanced
 
   # -- How hard the agent loops think before each reply: off, low, medium or high. Applied only when
-  # the loop model can think (Claude 4.5); otherwise thinking stays off and the agent says so in one
+  # the loop model can think (Claude 4.5, so not the aws default); otherwise thinking stays off and the agent says so in one
   # startup line.
   effort: 'off'
 
@@ -190,7 +191,7 @@ llm:
   promptCacheTtl: '1h'
 
   # -- Temperature of every model call that does not think. Set it to 'none' or '' to send no
-  # temperature, for a model that rejects one. A model that thinks is always sent none.
+  # temperature. A model that thinks is always sent none, and so is Sonnet 5.5, which rejects one.
   temperature: '0.00000001'
 
   # -- Name of a pre-existing secret holding the AWS credentials
