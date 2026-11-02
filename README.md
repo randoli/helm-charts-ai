@@ -1,6 +1,6 @@
 # Randoli SRE Agent
 
-.
+
 
 ## Contents
 
@@ -8,6 +8,7 @@
 - [Installation](#installation)
   - [Install together with the Randoli agent](#install-together-with-the-randoli-agent)
 - [MCP servers](#mcp-servers)
+- [Guardrails](#guardrails)
 - [What an MCPConfiguration says, and what the agent does with it](#what-an-mcpconfiguration-says-and-what-the-agent-does-with-it)
   - [spec.tools: the allow list and what each tool does](#spectools-the-allow-list-and-what-each-tool-does)
   - [spec.sensitiveTools: tools whose output is credentials](#specsensitivetools-tools-whose-output-is-credentials)
@@ -82,6 +83,40 @@ The chart installs four MCP servers by default. Each one reaches the agent throu
 Other MCP servers, such as GitHub, Atlassian (Jira and Confluence), Argo CD, Strimzi and Kyverno,
 are not part of this chart. Their manifests and CRs live in the `ai-agent` repo under `deploy/mcp/`.
 Apply a server's manifests and CR from there, then restart the agent so it reads the new CR.
+
+## Guardrails
+
+The Kubernetes MCP server can delete pods and change replica counts. The chart stops it from doing
+either to the workloads the agent itself runs on, so a chat or a runbook cannot take the agent down.
+
+- Three ValidatingAdmissionPolicies refuse these requests when they come from the Kubernetes MCP
+  server's service account, or the OpenShift server's (`mcp-server-openshift`): deleting a protected
+  workload's pods or ReplicaSets, deleting or restarting the workload, and changing its replica
+  count. `randoli-tproxy` may be scaled, but not below one replica. RBAC can only grant, never deny,
+  so this cannot be a ClusterRole rule. The server's `pods_delete` deletes pods rather than evicting
+  them, so Pod Disruption Budgets alone would not stop it either.
+- The policies need Kubernetes 1.30 or later (OpenShift 4.17 or later). On older clusters the chart
+  leaves them out, and the server notes do not mention them.
+- A PodDisruptionBudget with `minAvailable: 1` for each protected workload keeps one replica up
+  through voluntary disruptions such as node drains. With a single replica, a drain of the node that
+  runs it cannot finish until someone moves the pod, which can stall a node upgrade. Pods that are
+  not healthy can still be evicted.
+- The agent reads these policies from the cluster when it starts, the same way it reads the MCP
+  server's RBAC, and adds them to the Kubernetes server's notes with an explanation. Its prompts treat
+  a change the policies refuse as one it never makes or asks approval for, whoever asks,
+  administrators included, and however often; anyone who needs it makes it by hand. The agent's ClusterRole can read `validatingadmissionpolicies` and their bindings for this.
+  A change to the policies reaches the agent when it restarts.
+
+| Value | What it does |
+|---|---|
+| `guardrails.enabled` | Turns the policies and the budgets on or off |
+| `guardrails.podDisruptionBudgets` | Turns the budgets on or off |
+| `guardrails.serviceAccounts` | More service accounts held to the same rules, each a `name` and an optional `namespace` |
+| `guardrails.workloads` | The protected workloads: `name`, `kind` (`Deployment` or `StatefulSet`), `matchLabels` of their pods, an optional `namespace`, and `allowScale: true` to allow scaling to one replica or more |
+
+The default list is the Randoli agent (`randoli-agent`), its database (`randoli-fsqld`), the SRE
+agent, `randoli-tproxy`, the MCP servers this chart installs, and the optional MCP servers from the
+`ai-agent` repo.
 
 ## What an MCPConfiguration says, and what the agent does with it
 
@@ -227,6 +262,11 @@ models:
 Costs are USD per token. Cache writes have two rates because the price depends on the lifetime set
 by `llm.promptCacheTtl`, and which one applies is decided per call from what the provider reported.
 
+Two numbers per model size each run: `context_window`, the tokens one call may hold, and
+`max_output_tokens`, the most one reply may write. The agent compacts its history before it passes
+`analysis.contextCompactionThresholdPct` of the window, and saves a tool result to a file when it would
+take more than `analysis.toolResultMaxWindowPct` of it. A model without them gets 200,000 and 16,000.
+
 Two optional flags per model cover the things that are not about price:
 
 | Flag | Default | What it decides |
@@ -236,17 +276,20 @@ Two optional flags per model cover the things that are not about price:
 
 ### One model per role
 
-Every step of an investigation resolves its model through a key in the `models` map, so the heavy
-reasoning can use a strong model while summaries, per-iteration findings, compaction and chat titles
-use a cheap one. The key name **is** the role name, per agent: `RCA_INVESTIGATOR_MODEL`,
-`SRE_CHAT_EXECUTOR_MODEL`, `SRE_CHAT_TOOL_OUTPUT_SUMMARIZER_MODEL`, and so on. Each one becomes an
-env var of the same name.
+Each agent runs its loop on one model, named by a key in the `models` map: `RCA_INVESTIGATOR_MODEL`,
+`RUNBOOK_EXECUTOR_MODEL`, `PERIODIC_RUNBOOK_EXECUTOR_MODEL`, `RUNBOOK_VALIDATION_EXECUTOR_MODEL`,
+`SRE_CHAT_EXECUTOR_MODEL` and `MCP_TOOL_CALLING_MODEL`. Each agent also has two more keys with the
+same prefix: `<prefix>_VERDICT_EXTRACTOR_MODEL` fills in the final answer and `<prefix>_COMPACTION_MODEL`
+writes the summary when the history gets too long, for example `RCA_VERDICT_EXTRACTOR_MODEL` and
+`RCA_COMPACTION_MODEL`. Both return a fixed shape, so point them at a model that supports a forced tool
+call, such as Claude. `SRE_CHAT_TITLE_MODEL` names the chat's titles and can be a cheaper model. Each
+key becomes an env var of the same name.
 
 ```
 helm upgrade sre-agent randoli/sre-agent -n randoli-agents \
   --set llm.provider=anthropic \
   --set models.SRE_CHAT_EXECUTOR_MODEL=claude-sonnet-4-5-20250929 \
-  --set models.SRE_CHAT_TOOL_OUTPUT_SUMMARIZER_MODEL=claude-haiku-4-5-20251001
+  --set models.SRE_CHAT_TITLE_MODEL=claude-haiku-4-5-20251001
 ```
 
 Every id set there must also appear in `models.yaml` for the active provider. If one does not, the
@@ -267,6 +310,7 @@ first time you change provider and half the keys still hold the old ids.
 helm upgrade sre-agent randoli/sre-agent -n randoli-agents \
   --set observability.prometheusUrl=http://my-prometheus:9090 \
   --set observability.lokiUrl=http://my-loki:3100 \
+  --set mcpServers.loki.lokiUrl=http://my-loki:3100 \
   --set observability.tempoUrl=http://my-tempo:3200 \
   --set observability.otelExporterEndpoint=http://my-otel-collector:4317 \
   --set observability.traceLoopBaseUrl=http://my-otel-collector:4318 \
