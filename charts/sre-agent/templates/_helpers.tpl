@@ -14,7 +14,7 @@ Create chart name and version as used by the chart label.
 
 {{/*
 Selector labels shared by the Deployment's matchLabels, its pod template and
-the Service selector. These are immutable on a live Deployment — never add or
+the Service selector. These are immutable on a live Deployment; never add or
 remove keys without a migration plan.
 */}}
 {{- define "selectorLabels" -}}
@@ -38,7 +38,7 @@ helm.sh/chart: {{ include "chartName" . }}
 {{- end -}}
 
 {{/*
-Labels for MCP server resources — same shape as "labels" but with the MCP
+Labels for MCP server resources: same shape as "labels" but with the MCP
 server's own component name. Expects a dict {context: ., component: "<name>"}.
 Usage: include "mcpServerLabels" (dict "context" . "component" "randoli-mcp-server-kubernetes")
 */}}
