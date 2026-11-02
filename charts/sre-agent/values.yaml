@@ -10,8 +10,8 @@
 #     PostgreSQL / callback endpoints, and create the required secrets (see readme).
 #
 # Model pricing is NOT a value here: it ships as templates/models-configmap.yaml and is mounted at
-# /etc/agentic-ai/models.yaml. Every id in `models:` below must have an entry there, or that call is
-# rejected as an unsupported model.
+# /etc/agentic-ai/models.yaml. Every model the llm profile maps to has an entry there; a model without
+# one is rejected as unsupported.
 # ============================================================================
 
 image:
@@ -62,19 +62,29 @@ analysis:
   # both investigates AND acts.
   maxIterationsRunbook: '35'
   maxIterationsRunbookValidation: '11'
+  maxIterationsPeriodicRunbook: '15'
 
-  # -- Share of the model's context window, in percent, at which an agent's history is compacted into
-  # one summary before the next call. The window of each model comes from the models ConfigMap.
-  contextCompactionThresholdPct: '95'
+  # -- Share of the model's context window, in percent, at which the older part of an agent's history
+  # is compacted into one summary before the next call. The window of each model comes from the models
+  # ConfigMap.
+  compactionTriggerPct: '95'
+
+  # -- Share of the context window, in percent, that the newest replies and their tool results may take
+  # and still be kept word for word through a compaction. Older results are saved to files the agent
+  # can read back.
+  compactionKeepRecentPct: '25'
 
   # -- What one LLM call claims against the daily budget before it runs, in USD. The claim is
   # rewritten to the real cost once the call returns. Raising it refuses calls sooner near the
   # cap; lowering it lets a burst overshoot by more.
   budgetCallEstimateUsd: '0.3'
 
-  # -- How many tool calls run at once per iteration. Bounds concurrency only: every call the
-  # model asks for still runs, a wide fan-out just queues.
+  # -- How many tool calls run at once per iteration. Bounds concurrency only; how many calls one
+  # reply may make at all is maxToolCallsPerIteration.
   toolConcurrency: '8'
+  # -- The most tool calls one loop reply runs, bash reads and task list updates included. Calls past
+  # it get a not-run result asking for them in the next reply; the prompt states the number. '0' removes the limit.
+  maxToolCallsPerIteration: '5'
   toolTransientRetries: '2'
   # -- One tool result an agent reads whole is at most this share of the model's window, in percent,
   # and at most toolResultMaxTokens. A larger result is saved to a file in the pod, and the agent
@@ -87,6 +97,13 @@ analysis:
   # folder grows past it, so keep it well above normal use; folders are deleted when a run ends, with
   # a chat, or after toolResultRetentionHours.
   toolResultStorageSizeLimit: '2Gi'
+  # -- Byte budget the agent keeps the saved tool results under, deleting the oldest folders no run is
+  # using once it is passed. Keep it below toolResultStorageSizeLimit so the kubelet never evicts the pod.
+  toolResultStorageMaxBytes: '1610612736'
+  # -- Memory, in MB, each program of the agent's bash tool may use (sort, jq and the rest). A jq on the
+  # largest saved result needs about 128. Several can run at once inside the agent's 1Gi limit, so raise
+  # that limit before raising this. 0 turns the cap off.
+  bashToolMemoryLimitMb: '256'
   kubernetesOperationTimeoutSeconds: '30'
   budgetReserveWaitSeconds: '180'
   budgetReserveWaitChatSeconds: '15'
@@ -124,6 +141,29 @@ llm:
   # azure_meta, azure_mistral or azure_deepseek. See the readme for what each one reads.
   provider: aws
 
+  # -- Model family on that provider. Empty uses the provider's default. Change it with llm.provider:
+  # a family the provider does not offer stops the agent at start. The models each family maps
+  # to are in docs/model_profiles.md:
+  # aws: claude (default), nova, mistral, deepseek, qwen, gpt-oss; anthropic: claude;
+  # vertex: claude (default), gemini; openai and azure_openai: gpt; azure_deepseek: deepseek.
+  # azure_anthropic, azure_meta and azure_mistral have no families: set this and llm.preset to ''.
+  family: claude
+
+  # -- balanced: a strong model on the agent loops and the family's lighter model on compaction
+  # summaries and chat titles (claude: Sonnet 4.5 and Haiku 4.5). quality: the family's strongest model
+  # on every role (claude: Sonnet 5.5). Empty means balanced. The versions are chosen in the agent.
+  preset: balanced
+
+  # -- How hard the agent loops think before each reply: off, low, medium or high. Applied only when
+  # the loop model can think (Claude 4.5); otherwise thinking stays off and the agent says so in one
+  # startup line.
+  effort: 'off'
+
+  # -- Name of a pre-existing secret holding a Google service account key file under the key
+  # key.json, for llm.provider vertex. Mounted at /var/secrets/google/key.json and pointed to by
+  # GOOGLE_APPLICATION_CREDENTIALS. Leave empty when the pod gets Google credentials another way.
+  googleCredentialsSecretName: ''
+
   # -- AWS region used for Bedrock calls.
   region: us-east-1
 
@@ -148,6 +188,10 @@ llm:
   # -- Prompt cache lifetime. '1h' keeps the cached prefix warm across a whole investigation;
   # empty uses the provider's 5-minute default. '1h' costs more to write and far less to re-read.
   promptCacheTtl: '1h'
+
+  # -- Temperature of every model call that does not think. Set it to 'none' or '' to send no
+  # temperature, for a model that rejects one. A model that thinks is always sent none.
+  temperature: '0.00000001'
 
   # -- Name of a pre-existing secret holding the AWS credentials
   # (keys: AWS_ACCESS_KEY_ID, AWS_REGION, AWS_SECRET_ACCESS_KEY).
@@ -213,9 +257,11 @@ dataPlane:
   # -- Seconds any single database statement may take. The per-call budget reservation runs
   # on this path and fails CLOSED, so a slow store suppresses LLM calls rather than hanging.
   dbTimeoutSeconds: '10'
-  dbPoolMaxConnections: '16'
-  dbPoolAcquireTimeoutSeconds: '10'
-  dbPoolIdleTimeoutSeconds: '300'
+  dbPoolMaxConnections: '4'
+  dbPoolAcquireTimeoutSeconds: '30'
+  dbPoolIdleTimeoutSeconds: '60'
+  dbPoolMaxIdle: '1'
+  dbPoolReapIntervalSeconds: '15'
   healthDbCheckTtlSeconds: '5'
 
 server:
@@ -232,7 +278,7 @@ server:
     clientPerSecond: '100'
     maxClients: '10000'
   workers:
-    db: '16'
+    db: '4'
     blocking: '8'
     tool: '64'
     llm: '64'
@@ -453,34 +499,18 @@ global:
     enabled: false
 
 
-models:
-  # Root cause analysis
-  RCA_INVESTIGATOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  RCA_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  RCA_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-
-  # Runbook execution
-  RUNBOOK_EXECUTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  RUNBOOK_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  RUNBOOK_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-
-  # Periodic (scheduled) runbook
-  PERIODIC_RUNBOOK_EXECUTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  PERIODIC_RUNBOOK_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  PERIODIC_RUNBOOK_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-
-  # Runbook validation
-  RUNBOOK_VALIDATION_EXECUTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  RUNBOOK_VALIDATION_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  RUNBOOK_VALIDATION_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-
-  # Interactive SRE chat
-  SRE_CHAT_EXECUTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  SRE_CHAT_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  SRE_CHAT_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  SRE_CHAT_TITLE_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-
-  # MCP tool-calling agent
-  MCP_TOOL_CALLING_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  MCP_VERDICT_EXTRACTOR_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
-  MCP_COMPACTION_MODEL: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+# -- Per-loop thinking budget overrides: how many tokens that loop's model may think before each
+# reply, between tool calls too. llm.effort sets every loop's budget at once; a key set here replaces
+# the budget of that one loop only. Only Claude on aws, anthropic and vertex can think.
+# Empty by default, so the budgets come from llm.effort, which is off.
+# To override one loop, uncomment its line below (the value shown is the medium effort budget)
+# and change `thinkingBudgets: {}` to `thinkingBudgets:`. A value above 0 must be at least 1024 and
+# below the model's max_output_tokens (16000 for Sonnet 4.5).
+# The agent reads these at startup, so restart it after a change.
+thinkingBudgets: {}
+  # RCA_INVESTIGATOR_THINKING_BUDGET: 6000
+  # RUNBOOK_EXECUTOR_THINKING_BUDGET: 4000
+  # PERIODIC_RUNBOOK_EXECUTOR_THINKING_BUDGET: 4000
+  # RUNBOOK_VALIDATION_EXECUTOR_THINKING_BUDGET: 4000
+  # SRE_CHAT_EXECUTOR_THINKING_BUDGET: 4000
+  # MCP_TOOL_CALLING_THINKING_BUDGET: 2048

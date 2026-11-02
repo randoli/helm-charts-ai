@@ -27,7 +27,7 @@ spec:
                   type: string
                 transport:
                   type: string
-                  enum: [streamable_http, sse, stdio]
+                  enum: [streamable_http, streamable-http, http]
                 url:
                   type: string
                   format: uri
@@ -39,9 +39,8 @@ spec:
                     type: string
                 allowedTools:
                   description: >-
-                    Deprecated, superseded by tools. The tool names this server may expose to the
-                    agents it is enabled for. Read only when tools is absent, and then no tool of
-                    this server counts as one that changes a system.
+                    Deprecated, superseded by tools, and not read by the agent. Accepted so an
+                    older CR still applies. A server with this and no tools is not enabled.
                   type: array
                   items:
                     type: string
