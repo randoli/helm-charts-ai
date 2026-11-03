@@ -295,7 +295,7 @@ What each provider needs on its side:
 - **vertex:** enable the Claude models in Model Garden. For the Claude 5.5 models use the `global`
   location, or `us` or `eu`.
 - **azure_openai:** model ids are deployment names. Deploy `gpt-5.4` and `gpt-5.4-mini` under those
-  names, or override the roles.
+  names.
 
 <br>
 

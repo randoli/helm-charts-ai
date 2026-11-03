@@ -293,7 +293,7 @@ Two optional flags per model cover the things that are not about price:
 | Flag | Default | What it decides |
 |---|---|---|
 | `supports_prompt_cache` | whether any cache cost above is non-zero | whether this model is sent cache markers at all. A marker a model does not accept fails the whole call, so a model priced with no caching is simply never sent one |
-| `supports_tool_choice` | `true` | whether the agent may force a tool call when it needs an answer in a fixed shape. Bedrock's Converse API only accepts this for some model families; set it to `false` for the rest and the agent asks instead of forcing, which still works |
+| `supports_tool_choice` | `true` | whether the agent may force a tool call when it needs an answer in a fixed shape. Bedrock's Converse API only accepts this for some model families; set it to `false` for the rest; such a model must then be marked `schema_output` in the agent's model map, or its structured calls are refused with a message naming it |
 
 ### Picking models: provider, family, preset
 
