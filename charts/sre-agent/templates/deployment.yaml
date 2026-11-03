@@ -35,16 +35,15 @@ spec:
           ports:
             - containerPort: 8080
           env:
-            - name: FLIGHTSQL_PASSWORD
+            - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ $.Values.dataPlane.databaseSecretName }}
-                  key: password
-            - name: FLIGHTSQL_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $.Values.dataPlane.databaseSecretName }}
-                  key: username
+                  name: {{ tpl $.Values.dataPlane.databaseSecretName $ }}
+                  key: {{ $.Values.dataPlane.databasePasswordKey }}
+            {{- if $.Values.llm.googleCredentialsSecretName }}
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: /var/secrets/google/key.json
+            {{- end }}
           envFrom:
             - configMapRef:
                 name: randoli-sre-agent-config
@@ -57,6 +56,11 @@ spec:
             - name: model-pricing
               mountPath: /etc/agentic-ai
               readOnly: true
+            {{- if $.Values.llm.googleCredentialsSecretName }}
+            - name: google-credentials
+              mountPath: /var/secrets/google
+              readOnly: true
+            {{- end }}
             - name: tool-results
               mountPath: /var/lib/sre-agent/tool_results
           resources:
@@ -69,6 +73,14 @@ spec:
         - name: model-pricing
           configMap:
             name: randoli-sre-agent-models
+        {{- if $.Values.llm.googleCredentialsSecretName }}
+        - name: google-credentials
+          secret:
+            secretName: {{ $.Values.llm.googleCredentialsSecretName }}
+            items:
+              - key: key.json
+                path: key.json
+        {{- end }}
         - name: tool-results
           emptyDir:
             sizeLimit: {{ .Values.analysis.toolResultStorageSizeLimit }}
