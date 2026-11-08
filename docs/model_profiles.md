@@ -160,7 +160,7 @@ reached.
 |---|---|
 | `id` | the model id exactly as the provider takes it |
 | `schema_output` | the provider holds a structured reply to its JSON schema |
-| `schema_with_tools` | every loop reply is held to the reply schema while the model calls tools |
+| `schema_with_tools` | the provider can hold a reply's text to a schema while tools are bound. The agent does not use it: loop calls hold no schema, because a held schema next to the tools made the model's comment before its calls become the whole reply |
 | `tool_choice` | the agent may force a tool call |
 | `thinking.type` | the thinking setting every call carries; one of the model's `thinking_modes` |
 | `thinking.effort`, `thinking.budget_tokens` | the effort and budget sent; empty effort means the model's `default_effort` |
