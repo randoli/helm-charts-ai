@@ -15,3 +15,6 @@ Customer Managed (Will be added to docs)
 - Atlassian (research)
 - Strimzi (Image needs to be built and published)
 - Kyverno (Image needs to be built and published)
+
+Model profiles
+- Test the models of more families (nova, mistral, deepseek, qwen and gpt-oss on aws) and the quality preset on every route they run on: schema calls, held loop replies, forced tool calls, thinking types and prices. Then add their profiles to the recommendation service and their names to the llm.family and llm.preset enums in values.schema.json
