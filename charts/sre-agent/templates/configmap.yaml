@@ -25,7 +25,7 @@ data:
   RECOMMENDATION_MODEL_PROFILE_PATH: '{{ .Values.recommendationService.paths.modelProfile }}'
   RECOMMENDATION_AGENT_PROMPTS_PATH: '{{ .Values.recommendationService.paths.agentPrompts }}'
   RECOMMENDATION_AGENT_SCHEMAS_PATH: '{{ .Values.recommendationService.paths.agentSchemas }}'
-  RECOMMENDATION_RCA_FIX_TEMPLATE_PATH: '{{ .Values.recommendationService.paths.rcaFixTemplate }}'
+  RECOMMENDATION_RCA_FIX_SCHEMA_PATH: '{{ .Values.recommendationService.paths.rcaFixSchema }}'
   RECOMMENDATION_BLAST_SCORE_PATH: '{{ .Values.recommendationService.paths.blastScore }}'
   RECOMMENDATION_TIMEOUT_S: '{{ .Values.recommendationService.timeoutSeconds }}'
   RECOMMENDATION_RETRY_MAX_S: '{{ .Values.recommendationService.retryMaxSeconds }}'

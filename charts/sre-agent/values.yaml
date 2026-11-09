@@ -215,7 +215,7 @@ recommendationService:
     modelProfile: /recommendations/api/v1/model-profiles
     agentPrompts: /recommendations/api/v1/agent-prompts
     agentSchemas: /recommendations/api/v1/agent-schemas
-    rcaFixTemplate: /recommendations/api/v1/rca/fix-template
+    rcaFixSchema: /recommendations/api/v1/rca/fix-schema
     blastScore: /recommendations/api/v1/blast/score
 
   # -- Seconds one call to the service may take.
