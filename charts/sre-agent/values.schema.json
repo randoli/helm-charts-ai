@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "llm": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": ["aws", "anthropic"],
+          "description": "The LLM provider: aws (Amazon Bedrock) or anthropic (the Anthropic API)."
+        },
+        "family": {
+          "type": "string",
+          "enum": ["claude"],
+          "description": "The model family on the provider. Only families with a model profile are listed."
+        },
+        "preset": {
+          "type": "string",
+          "enum": ["balanced"],
+          "description": "The preset within the family. Only presets with a model profile are listed."
+        }
+      },
+      "required": ["provider", "family", "preset"]
+    }
+  }
+}

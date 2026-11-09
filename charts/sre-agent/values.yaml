@@ -9,9 +9,8 @@
 #     point at your own Prometheus / Loki / Tempo / OTel collector /
 #     PostgreSQL / callback endpoints, and create the required secrets (see readme).
 #
-# Model pricing is NOT a value here: it ships as templates/models-configmap.yaml and is mounted at
-# /etc/agentic-ai/models.yaml. Every model the llm profile maps to has an entry there; a model without
-# one is rejected as unsupported.
+# Models are not values here: llm.provider picks the agent's profile, which sets every role's model,
+# what each model accepts and its price.
 # ============================================================================
 
 image:
@@ -119,10 +118,9 @@ sreChat:
   maxIterations: '30'
   # -- How many times it may ask the user a clarifying question before it must answer regardless.
   maxClarificationRounds: '3'
-  # -- Cross-conversation memory: how many past (query, summary) pairs to load at intake.
+  # -- Earlier questions listed as history; in a chat about a correlation pair, half from this chat and half from the user's other chats about it.
   historyCount: '30'
-  # -- How many past finished chats about the SAME incident to load at intake.
-  incidentHistoryCount: '5'
+  relatedThreadsPageSize: '20'
   # -- A question about an incident reads from this many hours before the incident's occurredAt...
   incidentWindowBeforeHours: '3'
   # -- ...to this many hours after it, or now if sooner.
@@ -134,38 +132,33 @@ sreChat:
   waitTimeoutSeconds: '30'
 
 # ----------------------------------------------------------------------------
-# llm: LLM backend configuration (AWS Bedrock)
+# llm: LLM backend configuration
 # ----------------------------------------------------------------------------
 llm:
-  # -- LLM provider: aws, anthropic, openai, azure_openai, vertex, azure_anthropic,
-  # azure_meta, azure_mistral or azure_deepseek. See the readme for what each one reads.
+  # -- The model profile is picked by three values: provider, family and preset. The profile holds the
+  # whole model setup: each role's model and every flag, thinking setting, limit and price it needs,
+  # so only these three are set here. Each one is an enum in values.schema.json, holding only the
+  # values that have a profile today.
+  # See docs/model_profiles.md.
+  #
+  # LLM provider: aws (Amazon Bedrock) or anthropic (the Anthropic API).
   provider: aws
 
-  # -- Model family on that provider. Empty uses the provider's default. Change it with llm.provider:
-  # a family the provider does not offer stops the agent at start. The models each family maps
-  # to are in docs/model_profiles.md:
-  # aws: claude (default), nova, mistral, deepseek, qwen, gpt-oss; anthropic: claude;
-  # vertex: claude (default), gemini; openai and azure_openai: gpt; azure_deepseek: deepseek.
-  # azure_anthropic, azure_meta and azure_mistral have no families: set this and llm.preset to ''.
+  # -- Model family on the provider: claude. Not available yet: nova, mistral, deepseek, qwen and
+  # gpt-oss on aws.
+  # TODO: test each of those families' models on every route they run on (schema calls, held loop
+  # replies, forced tool calls, thinking types, prices), then add their profiles to the
+  # recommendation service and their names to the enum in values.schema.json.
   family: claude
 
-  # -- balanced: a strong model on the agent loops and the family's lighter model on compaction
-  # summaries and chat titles (claude on aws: Sonnet 5.5 and Haiku 4.5; on anthropic and vertex: Sonnet 4.5
-  # and Haiku 4.5). quality: the family's strongest model
-  # on every role (claude: Sonnet 5.5). Empty means balanced. The versions are chosen in the agent.
+  # -- Preset within the family: balanced, a strong model on every agent loop and the family's lighter
+  # model on compaction summaries and chat titles (claude: Sonnet 5.5 and Haiku 5.5). Not available
+  # yet: quality, the family's strongest model on every role.
+  # TODO: test the quality preset's models the same way, then add its profiles and its name to the
+  # enum in values.schema.json.
   preset: balanced
 
-  # -- How hard the agent loops think before each reply: off, low, medium or high. Applied only when
-  # the loop model can think (Claude 4.5, so not the aws default); otherwise thinking stays off and the agent says so in one
-  # startup line.
-  effort: 'off'
-
-  # -- Name of a pre-existing secret holding a Google service account key file under the key
-  # key.json, for llm.provider vertex. Mounted at /var/secrets/google/key.json and pointed to by
-  # GOOGLE_APPLICATION_CREDENTIALS. Leave empty when the pod gets Google credentials another way.
-  googleCredentialsSecretName: ''
-
-  # -- AWS region used for Bedrock calls.
+  # -- AWS region used for Bedrock calls. Sent to the agent only when llm.provider is aws.
   region: us-east-1
 
   # -- Seconds one LLM call may take before it is retried.
@@ -184,20 +177,52 @@ llm:
 
   keepWarmSeconds: '240'
 
+  helloRetrySeconds: '600'
+
   streaming: 'true'
 
   # -- Prompt cache lifetime. '1h' keeps the cached prefix warm across a whole investigation;
   # empty uses the provider's 5-minute default. '1h' costs more to write and far less to re-read.
   promptCacheTtl: '1h'
 
-  # -- Temperature of every model call that does not think. Set it to 'none' or '' to send no
-  # temperature. A model that thinks is always sent none, and so is Sonnet 5.5, which rejects one.
-  temperature: '0.00000001'
-
-  # -- Name of a pre-existing secret holding the AWS credentials
-  # (keys: AWS_ACCESS_KEY_ID, AWS_REGION, AWS_SECRET_ACCESS_KEY).
-  # This secret is NOT created by the chart; see the readme.
+  # -- Name of a pre-existing secret holding the provider's credentials: AWS_ACCESS_KEY_ID and
+  # AWS_SECRET_ACCESS_KEY for aws, or ANTHROPIC_API_KEY for anthropic. Only the keys of the
+  # provider in use are loaded into the agent; any other key in the secret is not. This secret is
+  # NOT created by the chart; see the readme.
   credentialsSecretName: randoli-sre-agent-secret
+
+# ----------------------------------------------------------------------------
+# recommendationService: where the agent loads its model profile, prompts and
+# schemas at startup, and scores blast radius. The agent serves nothing until
+# that load succeeds, and retries until it does.
+# ----------------------------------------------------------------------------
+recommendationService:
+  # -- Base URL of the insights-recommendation-service. The default is its Service in dev1
+  # (namespace app-insights-dev1), called directly inside the cluster. A cluster that reaches the
+  # service through the API gateway sets the gateway URL here instead.
+  url: 'http://insights-recommendation-service.app-insights-dev1.svc:8080'
+
+  # -- Organisation id sent as the randoli-user-org-id header (ORGANIZATION_ID). The service refuses
+  # a call without it (401 ORG_MISSING). Empty reads it from orgIdSecretName, the secret the
+  # platform agent's install creates in this namespace; set a value only to override that.
+  orgId: ''
+  # -- Secret holding the organisation id, and its key.
+  orgIdSecretName: randoli-agent-secret
+  orgIdSecretKey: ORGANIZATION_ID
+
+  # -- Route paths on that service.
+  paths:
+    modelProfile: /recommendations/api/v1/model-profiles
+    agentPrompts: /recommendations/api/v1/agent-prompts
+    agentSchemas: /recommendations/api/v1/agent-schemas
+    rcaFixSchema: /recommendations/api/v1/rca/fix-schema
+    blastScore: /recommendations/api/v1/blast/score
+
+  # -- Seconds one call to the service may take.
+  timeoutSeconds: '10'
+
+  # -- The longest wait between startup retries, in seconds. Retries start at 2 seconds and double.
+  retryMaxSeconds: '60'
 
 # ----------------------------------------------------------------------------
 # observability: telemetry backends the agent queries and exports to.
@@ -261,8 +286,6 @@ dataPlane:
   dbPoolMaxConnections: '4'
   dbPoolAcquireTimeoutSeconds: '30'
   dbPoolIdleTimeoutSeconds: '60'
-  dbPoolMaxIdle: '1'
-  dbPoolReapIntervalSeconds: '15'
   healthDbCheckTtlSeconds: '5'
 
 server:
@@ -498,20 +521,3 @@ global:
   # -- Set by the umbrella chart on OpenShift; disables the Kubernetes MCP server.
   openshift:
     enabled: false
-
-
-# -- Per-loop thinking budget overrides: how many tokens that loop's model may think before each
-# reply, between tool calls too. llm.effort sets every loop's budget at once; a key set here replaces
-# the budget of that one loop only. Only Claude on aws, anthropic and vertex can think.
-# Empty by default, so the budgets come from llm.effort, which is off.
-# To override one loop, uncomment its line below (the value shown is the medium effort budget)
-# and change `thinkingBudgets: {}` to `thinkingBudgets:`. A value above 0 must be at least 1024 and
-# below the model's max_output_tokens (16000 for Sonnet 4.5).
-# The agent reads these at startup, so restart it after a change.
-thinkingBudgets: {}
-  # RCA_INVESTIGATOR_THINKING_BUDGET: 6000
-  # RUNBOOK_EXECUTOR_THINKING_BUDGET: 4000
-  # PERIODIC_RUNBOOK_EXECUTOR_THINKING_BUDGET: 4000
-  # RUNBOOK_VALIDATION_EXECUTOR_THINKING_BUDGET: 4000
-  # SRE_CHAT_EXECUTOR_THINKING_BUDGET: 4000
-  # MCP_TOOL_CALLING_THINKING_BUDGET: 2048
