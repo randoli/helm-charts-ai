@@ -260,6 +260,14 @@ observability:
 dataPlane:
   agentCallbackUrl: http://randoli-agent:8080/
 
+  # -- Data plane URL (DATAPLANE_URL). Empty reads it from urlSecretName, the agent secret the
+  # platform agent's install creates in this namespace; set a value only to override that.
+  url: ''
+  # -- Secret holding the data plane URL (rendered through `tpl`), and its key. Optional: the env
+  # var is left unset when the secret has no such key.
+  urlSecretName: randoli-agent-secret
+  urlSecretKey: DATAPLANE_URL
+
   # -- PostgreSQL server of the data plane (the umbrella chart's randoli-db).
   # Values are rendered through `tpl`.
   dbHost: randoli-db

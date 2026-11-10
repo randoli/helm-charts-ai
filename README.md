@@ -356,6 +356,7 @@ These have no safe default. The agent cannot start without them.
 | `DB_USER` | `dataPlane.dbUser` | `sre_agent` | The agent's database role |
 | `DB_PASSWORD` | `dataPlane.databaseSecretName`, `dataPlane.databasePasswordKey` | `randoli-agent-db`, `sre-agent-password` | Read from this existing secret |
 | `AGENT_CALLBACK_URL` | `dataPlane.agentCallbackUrl` | `http://randoli-agent:8080/` | Where reports are POSTed when a request omits `callbackUrl` |
+| `DATAPLANE_URL` | key `dataPlane.urlSecretKey` of `dataPlane.urlSecretName`, or `dataPlane.url` when set | `DATAPLANE_URL` of `randoli-agent-secret` | The data plane URL, read from the agent secret the platform agent's install creates in the same namespace; `url` overrides it. Optional: left unset when the secret has no such key |
 | `PROMETHEUS_URL` | `observability.prometheusUrl` | `http://randoli-obs-prometheus:80` | Metrics backend |
 | `TEMPO_URL` | `observability.tempoUrl` | `http://randoli-obs-tempo:3200` | Trace backend |
 | `LOG_LOKI_URL` | `observability.lokiUrl` | `http://randoli-obs-loki:3100` | Log backend |
