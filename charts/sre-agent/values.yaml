@@ -197,9 +197,10 @@ llm:
 # that load succeeds, and retries until it does.
 # ----------------------------------------------------------------------------
 recommendationService:
-  # -- Base URL of the insights-recommendation-service. The default is its Service in dev1
+  # -- Base URL of the data plane, sent to the agent as DATAPLANE_URL. It serves the
+  # insights-recommendation-service under the paths below. The default is that Service in dev1
   # (namespace app-insights-dev1), called directly inside the cluster. A cluster that reaches the
-  # service through the API gateway sets the gateway URL here instead.
+  # data plane through the API gateway sets the gateway URL here instead.
   url: 'http://insights-recommendation-service.app-insights-dev1.svc:8080'
 
   # -- Organisation id sent as the randoli-user-org-id header (ORGANIZATION_ID). The service refuses
