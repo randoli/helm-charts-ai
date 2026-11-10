@@ -21,7 +21,7 @@ data:
   MODEL_FAMILY: '{{ .Values.llm.family }}'
   MODEL_PRESET: '{{ .Values.llm.preset }}'
   AGENT_VERSION: '{{ .Chart.AppVersion }}'
-  DATAPLANE_URL: '{{ .Values.recommendationService.url }}'
+  RECOMMENDATION_SERVICE_URL: '{{ .Values.recommendationService.url }}'
   RECOMMENDATION_MODEL_PROFILE_PATH: '{{ .Values.recommendationService.paths.modelProfile }}'
   RECOMMENDATION_AGENT_PROMPTS_PATH: '{{ .Values.recommendationService.paths.agentPrompts }}'
   RECOMMENDATION_AGENT_SCHEMAS_PATH: '{{ .Values.recommendationService.paths.agentSchemas }}'
