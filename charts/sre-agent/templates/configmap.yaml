@@ -18,6 +18,17 @@ data:
   DB_SSLMODE: '{{ tpl (.Values.dataPlane.dbSslMode | toString) . }}'
   DB_USER: '{{ .Values.dataPlane.dbUser }}'
   LLM_PROVIDER: '{{ .Values.llm.provider }}'
+  MODEL_FAMILY: '{{ .Values.llm.family }}'
+  MODEL_PRESET: '{{ .Values.llm.preset }}'
+  AGENT_VERSION: '{{ .Chart.AppVersion }}'
+  RECOMMENDATION_SERVICE_URL: '{{ .Values.recommendationService.url }}'
+  RECOMMENDATION_MODEL_PROFILE_PATH: '{{ .Values.recommendationService.paths.modelProfile }}'
+  RECOMMENDATION_AGENT_PROMPTS_PATH: '{{ .Values.recommendationService.paths.agentPrompts }}'
+  RECOMMENDATION_AGENT_SCHEMAS_PATH: '{{ .Values.recommendationService.paths.agentSchemas }}'
+  RECOMMENDATION_RCA_FIX_SCHEMA_PATH: '{{ .Values.recommendationService.paths.rcaFixSchema }}'
+  RECOMMENDATION_BLAST_SCORE_PATH: '{{ .Values.recommendationService.paths.blastScore }}'
+  RECOMMENDATION_TIMEOUT_S: '{{ .Values.recommendationService.timeoutSeconds }}'
+  RECOMMENDATION_RETRY_MAX_S: '{{ .Values.recommendationService.retryMaxSeconds }}'
   LOG_LOKI_URL: '{{ tpl .Values.observability.lokiUrl . }}'
   LOG_PROVIDER : loki
   MCP_MAX_ITERATIONS : '{{ .Values.analysis.maxIterationsMCP }}'
@@ -31,9 +42,9 @@ data:
   PROMETHEUS_URL: '{{ tpl .Values.observability.prometheusUrl . }}'
   RCA_INVESTIGATOR_MAX_ITERATIONS : '{{ .Values.analysis.maxIterationsRCA }}'
   RCA_MIN_CONFIDENCE_FOR_FIXES : '{{ .Values.analysis.minConfidenceForFixesRCA }}'
-  # config.py reads AWS_REGION, not REGION. The secret can also carry AWS_REGION;
-  # whichever the secret sets wins, since envFrom applies the secret after this map.
+  {{- if eq .Values.llm.provider "aws" }}
   AWS_REGION: '{{ .Values.llm.region }}'
+  {{- end }}
   RUNNING_IN_KUBERNETES: 'true'
   TRACELOOP_BASE_URL: '{{ tpl .Values.observability.traceLoopBaseUrl . }}'
   TRACELOOP_TRACE_CONTENT: 'false'
@@ -44,16 +55,16 @@ data:
   # this estimate before it runs, then settles to the real cost. No reconcile loop.
   BUDGET_CALL_ESTIMATE_USD: '{{ .Values.analysis.budgetCallEstimateUsd }}'
 
-  # Every database statement is bounded by these. The budget reservation runs on this path,
-  # and a read that cannot answer in time refuses the LLM call, so keep them tight.
+  # Every database statement is bounded by this. The budget reservation runs on this path,
+  # and a read that cannot answer in time refuses the LLM call, so keep it tight.
   DB_TIMEOUT_QUERY_S: '{{ .Values.dataPlane.dbTimeoutSeconds }}'
-  DB_TIMEOUT_FETCH_S: '{{ .Values.dataPlane.dbTimeoutSeconds }}'
-  DB_TIMEOUT_UPDATE_S: '{{ .Values.dataPlane.dbTimeoutSeconds }}'
 
   # Iteration caps per agent.
   RUNBOOK_MAX_ITERATIONS: '{{ .Values.analysis.maxIterationsRunbook }}'
   RUNBOOK_VALIDATION_MAX_ITERATIONS: '{{ .Values.analysis.maxIterationsRunbookValidation }}'
-  CONTEXT_WINDOW_COMPACTION_THRESHOLD_PCT: '{{ .Values.analysis.contextCompactionThresholdPct }}'
+  PERIODIC_RUNBOOK_MAX_ITERATIONS: '{{ .Values.analysis.maxIterationsPeriodicRunbook }}'
+  COMPACTION_TRIGGER_PCT: '{{ .Values.analysis.compactionTriggerPct }}'
+  COMPACTION_KEEP_RECENT_PCT: '{{ .Values.analysis.compactionKeepRecentPct }}'
   SRE_CHAT_MAX_ITERATIONS: '{{ .Values.sreChat.maxIterations }}'
   SRE_CHAT_MAX_CLARIFICATION_ROUNDS: '{{ .Values.sreChat.maxClarificationRounds }}'
   LLM_CALL_TIMEOUT_S: '{{ .Values.llm.callTimeoutSeconds }}'
@@ -63,15 +74,17 @@ data:
   LLM_SIDE_READ_TIMEOUT_S: '{{ .Values.llm.sideReadTimeoutSeconds }}'
   LLM_CONNECT_TIMEOUT_S: '{{ .Values.llm.connectTimeoutSeconds }}'
   LLM_KEEP_WARM_S: '{{ .Values.llm.keepWarmSeconds }}'
+  LLM_HELLO_RETRY_S: '{{ .Values.llm.helloRetrySeconds }}'
   LLM_STREAMING: '{{ .Values.llm.streaming }}'
   SRE_CHAT_HISTORY_COUNT: '{{ .Values.sreChat.historyCount }}'
-  SRE_CHAT_INCIDENT_HISTORY_COUNT: '{{ .Values.sreChat.incidentHistoryCount }}'
+  SRE_CHAT_RELATED_THREADS_PAGE_SIZE: '{{ .Values.sreChat.relatedThreadsPageSize }}'
   SRE_CHAT_INCIDENT_WINDOW_BEFORE_HOURS: '{{ .Values.sreChat.incidentWindowBeforeHours }}'
   SRE_CHAT_INCIDENT_WINDOW_AFTER_HOURS: '{{ .Values.sreChat.incidentWindowAfterHours }}'
 
-  # How many tool calls run at once per iteration. There is no cap on how MANY a turn may
-  # contain; this bounds only how many are in flight, so a wide fan-out queues.
+  # How many tool calls run at once per iteration; this bounds only how many are in flight.
   AGENT_TOOL_CONCURRENCY: '{{ .Values.analysis.toolConcurrency }}'
+  # The most tool calls one loop reply runs; calls past it are answered as not run.
+  MAX_TOOL_CALLS_PER_ITERATION: '{{ .Values.analysis.maxToolCallsPerIteration }}'
 
   # '1h' keeps the cached prompt prefix warm across a whole run. Empty means the 5-minute default.
   PROMPT_CACHE_TTL: '{{ .Values.llm.promptCacheTtl }}'
@@ -86,9 +99,11 @@ data:
   K8S_OPERATION_TIMEOUT_S: '{{ .Values.analysis.kubernetesOperationTimeoutSeconds }}'
   BUDGET_RESERVE_WAIT_S: '{{ .Values.analysis.budgetReserveWaitSeconds }}'
   BUDGET_RESERVE_WAIT_CHAT_S: '{{ .Values.analysis.budgetReserveWaitChatSeconds }}'
-  TOOL_MAX_ALLOCATED_CONTEXT_WINDOW_PCT: '{{ .Values.analysis.toolResultMaxWindowPct }}'
-  TOOL_MAX_ALLOCATED_CONTEXT_WINDOW_TOKENS: '{{ .Values.analysis.toolResultMaxTokens }}'
+  TOOL_RESULT_MAX_WINDOW_PCT: '{{ .Values.analysis.toolResultMaxWindowPct }}'
+  TOOL_RESULT_MAX_TOKENS: '{{ .Values.analysis.toolResultMaxTokens }}'
   TOOL_RESULT_RETENTION_HOURS: '{{ .Values.analysis.toolResultRetentionHours }}'
+  TOOL_RESULT_STORAGE_MAX_BYTES: '{{ .Values.analysis.toolResultStorageMaxBytes }}'
+  BASH_TOOL_MEMORY_LIMIT_MB: '{{ .Values.analysis.bashToolMemoryLimitMb }}'
   TOOL_RESULT_STORAGE_PATH: /var/lib/sre-agent/tool_results
   BUDGET_REPROBE_S: '{{ .Values.analysis.budgetReprobeSeconds }}'
   BUDGET_SWEEP_INTERVAL_S: '{{ .Values.analysis.budgetSweepIntervalSeconds }}'
@@ -126,8 +141,3 @@ data:
   MCP_SESSION_IDLE_S: '{{ .Values.mcpClient.sessionIdleSeconds }}'
   MCP_DEFAULT_MAX_CALLS: '{{ .Values.mcpClient.defaultMaxCalls }}'
 
-  # Model per role: each agent's loop model, and the chat's title model. Each id must also appear
-  # in the models.yaml pricing file mounted by this chart.
-  {{- range $role, $model := .Values.models }}
-  {{ $role }}: '{{ $model }}'
-  {{- end }}

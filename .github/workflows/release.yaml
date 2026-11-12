@@ -2,8 +2,8 @@ name: Release Charts
 
 # Releases are cut by pushing a semver tag (no 'v' prefix, so the tag is
 # identical to the chart version):
-#   X.Y.Z                    stable      — commit must be reachable from main
-#   X.Y.Z-(rc|alpha|beta).N  pre-release — commit must be reachable from main
+#   X.Y.Z                    stable      : commit must be reachable from main
+#   X.Y.Z-(rc|alpha|beta).N  pre-release : commit must be reachable from main
 #                                          or a release/X.Y.Z branch
 # scripts/validate-release.sh enforces both rules plus Chart.yaml version == tag.
 on:
@@ -96,7 +96,7 @@ jobs:
           # checkout persists the workflow GITHUB_TOKEN as an http extraheader,
           # which would shadow the App token in cr's push URL (an explicit
           # Authorization header wins over URL credentials) and fail the push
-          # with 403/404 — the GITHUB_TOKEN has no access to randoli/helm-charts.
+          # with 403/404; the GITHUB_TOKEN has no access to randoli/helm-charts.
           git config --local --unset-all "http.https://github.com/.extraheader" || true
           git fetch pages gh-pages
           # cr index writes the merged index via an atomic temp-file rename
