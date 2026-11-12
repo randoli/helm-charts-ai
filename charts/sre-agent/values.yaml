@@ -361,7 +361,12 @@ mcpServers:
 
 guardrails:
   enabled: true
-  podDisruptionBudgets: true
+  # -- PodDisruptionBudget (minAvailable: 1) per protected workload. Off by
+  # default: every protected workload runs a single replica, so the budget
+  # allows zero evictions and blocks node drains (e.g. AKS/EKS/GKE node-pool
+  # upgrades). The MCP servers delete pods rather than evict them, so the
+  # admission policies above are what actually protect the workloads.
+  podDisruptionBudgets: false
   serviceAccounts:
     - name: mcp-server-openshift
   workloads:
