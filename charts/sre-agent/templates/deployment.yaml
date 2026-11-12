@@ -49,14 +49,14 @@ spec:
                   name: {{ tpl $.Values.recommendationService.orgIdSecretName $ }}
                   key: {{ $.Values.recommendationService.orgIdSecretKey }}
               {{- end }}
-            - name: DATAPLANE_URL
-              {{- if $.Values.dataPlane.url }}
-              value: {{ $.Values.dataPlane.url | quote }}
+            - name: CONTROLPLANE_URL
+              {{- if $.Values.controlPlane.url }}
+              value: {{ $.Values.controlPlane.url | quote }}
               {{- else }}
               valueFrom:
                 secretKeyRef:
-                  name: {{ tpl $.Values.dataPlane.urlSecretName $ }}
-                  key: {{ $.Values.dataPlane.urlSecretKey }}
+                  name: {{ tpl $.Values.controlPlane.urlSecretName $ }}
+                  key: {{ $.Values.controlPlane.urlSecretKey }}
                   optional: true
               {{- end }}
             {{- if eq $.Values.llm.provider "aws" }}
