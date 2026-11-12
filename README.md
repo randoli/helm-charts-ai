@@ -55,7 +55,7 @@ NOTE: replace <namespace1\,namespace2> with a list of namespaces which can be an
 
 The SRE agent is also bundled into the `randoli-agent` umbrella chart as an optional
 dependency. When installed this way, all endpoint configuration (Prometheus, Loki, Tempo,
-OTel collector, agent callback/Flight SQL URLs) is provided by the umbrella chart:
+OTel collector, agent callback URL, PostgreSQL connection) is provided by the umbrella chart:
 
 ```
 helm install randoli randoli/randoli-agent -n randoli-agents \
@@ -97,10 +97,13 @@ either to the workloads the agent itself runs on, so a chat or a runbook cannot 
   them, so Pod Disruption Budgets alone would not stop it either.
 - The policies need Kubernetes 1.30 or later (OpenShift 4.17 or later). On older clusters the chart
   leaves them out, and the server notes do not mention them.
-- A PodDisruptionBudget with `minAvailable: 1` for each protected workload keeps one replica up
-  through voluntary disruptions such as node drains. With a single replica, a drain of the node that
-  runs it cannot finish until someone moves the pod, which can stall a node upgrade. Pods that are
-  not healthy can still be evicted.
+- Optionally (`guardrails.podDisruptionBudgets: true`, off by default), a PodDisruptionBudget with
+  `minAvailable: 1` for each protected workload keeps one replica up through voluntary disruptions
+  such as node drains. Every protected workload runs a single replica, so the budget allows no
+  evictions at all: a drain of the node that runs it cannot finish until someone moves the pod, and
+  managed node-pool upgrades (AKS, EKS, GKE) fail. The budgets add nothing against the MCP servers,
+  which delete pods rather than evict them, so leave them off unless you run more replicas. Pods
+  that are not healthy can still be evicted.
 - The agent reads these policies from the cluster when it starts, the same way it reads the MCP
   server's RBAC, and adds them to the Kubernetes server's notes with an explanation. Its prompts treat
   a change the policies refuse as one it never makes or asks approval for, whoever asks,
@@ -110,7 +113,7 @@ either to the workloads the agent itself runs on, so a chat or a runbook cannot 
 | Value | What it does |
 |---|---|
 | `guardrails.enabled` | Turns the policies and the budgets on or off |
-| `guardrails.podDisruptionBudgets` | Turns the budgets on or off |
+| `guardrails.podDisruptionBudgets` | Turns the budgets on or off (default `false`; blocks node drains with single replicas) |
 | `guardrails.serviceAccounts` | More service accounts held to the same rules, each a `name` and an optional `namespace` |
 | `guardrails.workloads` | The protected workloads: `name`, `kind` (`Deployment` or `StatefulSet`), `matchLabels` of their pods, an optional `namespace`, and `allowScale: true` to allow scaling to one replica or more |
 
@@ -315,8 +318,13 @@ helm upgrade sre-agent randoli/sre-agent -n randoli-agents \
   --set observability.otelExporterEndpoint=http://my-otel-collector:4317 \
   --set observability.traceLoopBaseUrl=http://my-otel-collector:4318 \
   --set dataPlane.agentCallbackUrl=http://my-agent:8080/ \
-  --set dataPlane.flightSqlUrl=grpc+tcp://my-agent:31337
+  --set dataPlane.dbHost=my-postgres.my-namespace.svc \
+  --set dataPlane.dbSslMode=require \
+  --set dataPlane.databaseSecretName=my-db-secret
 ```
+
+  The database password is read from key `sre-agent-password` of `dataPlane.databaseSecretName`
+  (`dataPlane.databasePasswordKey`); the role is `dataPlane.dbUser` (`sre_agent`).
 
 - **LLM call timeouts** are split in two, because the two kinds of call are nothing alike. A big
   reasoning call can legitimately run for minutes (`llm.readTimeoutSeconds`, 240s), while the small

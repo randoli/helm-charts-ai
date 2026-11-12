@@ -35,16 +35,11 @@ spec:
           ports:
             - containerPort: 8080
           env:
-            - name: FLIGHTSQL_PASSWORD
+            - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ $.Values.dataPlane.databaseSecretName }}
-                  key: password
-            - name: FLIGHTSQL_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $.Values.dataPlane.databaseSecretName }}
-                  key: username
+                  name: {{ tpl $.Values.dataPlane.databaseSecretName $ }}
+                  key: {{ $.Values.dataPlane.databasePasswordKey }}
           envFrom:
             - configMapRef:
                 name: randoli-sre-agent-config

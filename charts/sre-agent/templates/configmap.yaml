@@ -12,7 +12,11 @@ data:
   ENABLED_NAMESPACES: '{{ .Values.analysis.enabledNamespaces }}'
   LOG_LEVEL: '{{ .Values.logLevel }}'
   ENABLED_WORKLOADS: '{{ .Values.analysis.enabledWorkloads }}'
-  FLIGHTSQL_URL: '{{ tpl .Values.dataPlane.flightSqlUrl . }}'
+  DB_HOST: '{{ tpl (.Values.dataPlane.dbHost | toString) . }}'
+  DB_PORT: '{{ tpl (.Values.dataPlane.dbPort | toString) . }}'
+  DB_NAME: '{{ tpl (.Values.dataPlane.dbName | toString) . }}'
+  DB_SSLMODE: '{{ tpl (.Values.dataPlane.dbSslMode | toString) . }}'
+  DB_USER: '{{ .Values.dataPlane.dbUser }}'
   LLM_PROVIDER: '{{ .Values.llm.provider }}'
   LOG_LOKI_URL: '{{ tpl .Values.observability.lokiUrl . }}'
   LOG_PROVIDER : loki
@@ -40,7 +44,7 @@ data:
   # this estimate before it runs, then settles to the real cost. No reconcile loop.
   BUDGET_CALL_ESTIMATE_USD: '{{ .Values.analysis.budgetCallEstimateUsd }}'
 
-  # Every FlightSQL statement is bounded by these. The budget reservation runs on this path,
+  # Every database statement is bounded by these. The budget reservation runs on this path,
   # and a read that cannot answer in time refuses the LLM call, so keep them tight.
   DB_TIMEOUT_QUERY_S: '{{ .Values.dataPlane.dbTimeoutSeconds }}'
   DB_TIMEOUT_FETCH_S: '{{ .Values.dataPlane.dbTimeoutSeconds }}'
@@ -93,7 +97,6 @@ data:
   DB_POOL_MAX_CONNECTIONS: '{{ .Values.dataPlane.dbPoolMaxConnections }}'
   DB_POOL_ACQUIRE_TIMEOUT_S: '{{ .Values.dataPlane.dbPoolAcquireTimeoutSeconds }}'
   DB_POOL_IDLE_TIMEOUT_S: '{{ .Values.dataPlane.dbPoolIdleTimeoutSeconds }}'
-  DB_MAX_MSG_SIZE_S: '{{ .Values.dataPlane.dbMaxMessageSizeBytes }}'
   HEALTH_DB_CHECK_TTL_S: '{{ .Values.dataPlane.healthDbCheckTtlSeconds }}'
   SERVER_BACKLOG: '{{ .Values.server.backlog }}'
   SERVER_LIMIT_CONCURRENCY: '{{ .Values.server.limitConcurrency }}'
