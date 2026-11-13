@@ -265,6 +265,39 @@ controlPlane:
   urlSecretKey: CONTROLPLANE_URL
 
 # ----------------------------------------------------------------------------
+# keycloak: how the agent authenticates to the recommendation service. It
+# fetches a JWT from Keycloak over mutual TLS with the platform agent's client
+# certificate and sends it as Authorization: Bearer on every call to the
+# service. Both secrets are created by the platform agent's install in this
+# namespace. Required: the agent serves nothing until it has a token.
+# ----------------------------------------------------------------------------
+keycloak:
+  # -- Secret holding the Keycloak settings (rendered through `tpl`), and its keys. The same
+  # secret the platform agent reads: KEYCLOAK_URL is the Keycloak origin, KEYCLOAK_REALM the
+  # agents' realm, and the client id and secret identify the cluster agent client.
+  secretName: randoli-agent-secret
+  urlKey: KEYCLOAK_URL
+  realmKey: KEYCLOAK_REALM
+  clientIdKey: KEYCLOAK_CLIENT_ID
+  clientSecretKey: KEYCLOAK_CLIENT_SECRET
+
+  # -- Secret holding the agent's client certificate (rendered through `tpl`), its keys, and
+  # where the two files are mounted. Keycloak identifies the agent by this certificate.
+  certSecretName: randoli-agent-cert
+  certKey: client-cert.pem
+  privateKeyKey: client-key.pem
+  mountPath: /app/certs
+
+  # -- Token route under the Keycloak origin; {realm} is replaced. A Keycloak without the legacy
+  # /auth prefix uses /realms/{realm}/protocol/openid-connect/token.
+  tokenPath: /auth/realms/{realm}/protocol/openid-connect/token
+
+  # -- Seconds one token call may take, and how many seconds before its expiry the token is
+  # fetched again.
+  timeoutSeconds: '60'
+  refreshMarginSeconds: '30'
+
+# ----------------------------------------------------------------------------
 # dataPlane: Randoli data plane services the agent reports back to.
 # Defaults match the randoli-agent umbrella chart's service names.
 # Standalone installs MUST override every value in this section.

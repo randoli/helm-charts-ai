@@ -29,6 +29,11 @@ data:
   RECOMMENDATION_BLAST_SCORE_PATH: '{{ .Values.recommendationService.paths.blastScore }}'
   RECOMMENDATION_TIMEOUT_S: '{{ .Values.recommendationService.timeoutSeconds }}'
   RECOMMENDATION_RETRY_MAX_S: '{{ .Values.recommendationService.retryMaxSeconds }}'
+  CLIENT_CERT_PATH: '{{ .Values.keycloak.mountPath }}/client-cert.pem'
+  CLIENT_PRIVATE_KEY_PATH: '{{ .Values.keycloak.mountPath }}/client-key.pem'
+  KEYCLOAK_TOKEN_PATH: '{{ .Values.keycloak.tokenPath }}'
+  KEYCLOAK_TIMEOUT_S: '{{ .Values.keycloak.timeoutSeconds }}'
+  KEYCLOAK_REFRESH_MARGIN_S: '{{ .Values.keycloak.refreshMarginSeconds }}'
   LOG_LOKI_URL: '{{ tpl .Values.observability.lokiUrl . }}'
   LOG_PROVIDER : loki
   MCP_MAX_ITERATIONS : '{{ .Values.analysis.maxIterationsMCP }}'
