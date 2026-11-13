@@ -214,11 +214,6 @@ recommendationService:
     rcaFixSchema: /appdir/recommendations/v1/rca/fix-schema
     blastScore: /appdir/recommendations/v1/blast/score
 
-  # -- Seconds one call to the service may take.
-  timeoutSeconds: '10'
-
-  # -- The longest wait between startup retries, in seconds. Retries start at 2 seconds and double.
-  retryMaxSeconds: '60'
 
 # ----------------------------------------------------------------------------
 # observability: telemetry backends the agent queries and exports to.
@@ -260,6 +255,12 @@ controlPlane:
   # -- Secret holding the control plane URL (rendered through `tpl`), and its key.
   urlSecretName: randoli-agent-secret
   urlSecretKey: CONTROLPLANE_URL
+
+  # -- Seconds one call to the control plane may take.
+  timeoutSeconds: '10'
+
+  # -- The longest wait between startup retries, in seconds. Retries start at 2 seconds and double.
+  retryMaxSeconds: '60'
 
 # ----------------------------------------------------------------------------
 # keycloak: how the agent authenticates to the recommendation service. It
