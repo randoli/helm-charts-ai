@@ -197,11 +197,6 @@ llm:
 # that load succeeds, and retries until it does.
 # ----------------------------------------------------------------------------
 recommendationService:
-  # -- Base URL of the insights-recommendation-service. The default is its Service in dev1
-  # (namespace app-insights-dev1), called directly inside the cluster. A cluster that reaches the
-  # service through the API gateway sets the gateway URL here instead.
-  url: 'http://insights-recommendation-service.app-insights-dev1.svc:8080'
-
   # -- Organisation id sent as the randoli-user-org-id header (ORGANIZATION_ID). The service refuses
   # a call without it (401 ORG_MISSING). Empty reads it from orgIdSecretName, the secret the
   # platform agent's install creates in this namespace; set a value only to override that.
@@ -210,19 +205,15 @@ recommendationService:
   orgIdSecretName: randoli-agent-secret
   orgIdSecretKey: ORGANIZATION_ID
 
-  # -- Route paths on that service.
+  # -- Route paths of the service on the control plane (controlPlane.url), which hosts it under
+  # /appdir/recommendations/v1. The service's own routes are under /recommendations/api/v1.
   paths:
-    modelProfile: /recommendations/api/v1/model-profiles
-    agentPrompts: /recommendations/api/v1/agent-prompts
-    agentSchemas: /recommendations/api/v1/agent-schemas
-    rcaFixSchema: /recommendations/api/v1/rca/fix-schema
-    blastScore: /recommendations/api/v1/blast/score
+    modelProfile: /appdir/recommendations/v1/model-profiles
+    agentPrompts: /appdir/recommendations/v1/agent-prompts
+    agentSchemas: /appdir/recommendations/v1/agent-schemas
+    rcaFixSchema: /appdir/recommendations/v1/rca/fix-schema
+    blastScore: /appdir/recommendations/v1/blast/score
 
-  # -- Seconds one call to the service may take.
-  timeoutSeconds: '10'
-
-  # -- The longest wait between startup retries, in seconds. Retries start at 2 seconds and double.
-  retryMaxSeconds: '60'
 
 # ----------------------------------------------------------------------------
 # observability: telemetry backends the agent queries and exports to.
@@ -253,20 +244,64 @@ observability:
   tempoTimeoutSeconds: '30'
 
 # ----------------------------------------------------------------------------
+# Control plane
+# ----------------------------------------------------------------------------
+controlPlane:
+  # -- Control plane URL (CONTROLPLANE_URL): the base of every call to the recommendation service,
+  # under recommendationService.paths. Required: the agent serves nothing until it has loaded its
+  # profile, prompts and schemas from there. Empty reads it from urlSecretName, the agent secret
+  # the platform agent's install creates in this namespace; set a value only to override that.
+  url: ''
+  # -- Secret holding the control plane URL (rendered through `tpl`), and its key.
+  urlSecretName: randoli-agent-secret
+  urlSecretKey: CONTROLPLANE_URL
+
+  # -- Seconds one call to the control plane may take.
+  timeoutSeconds: '10'
+
+  # -- The longest wait between startup retries, in seconds. Retries start at 2 seconds and double.
+  retryMaxSeconds: '60'
+
+# ----------------------------------------------------------------------------
+# keycloak: how the agent authenticates to the recommendation service. It
+# fetches a JWT from Keycloak over mutual TLS with the platform agent's client
+# certificate and sends it as Authorization: Bearer on every call to the
+# service. Both secrets are created by the platform agent's install in this
+# namespace. Required: the agent serves nothing until it has a token.
+# ----------------------------------------------------------------------------
+keycloak:
+  # -- Secret holding the Keycloak settings (rendered through `tpl`), and its keys. The same
+  # secret the platform agent reads: KEYCLOAK_URL is the Keycloak origin, KEYCLOAK_REALM the
+  # agents' realm, and the client id and secret identify the cluster agent client.
+  secretName: randoli-agent-secret
+  urlKey: KEYCLOAK_URL
+  realmKey: KEYCLOAK_REALM
+  clientIdKey: KEYCLOAK_CLIENT_ID
+  clientSecretKey: KEYCLOAK_CLIENT_SECRET
+
+  # -- Secret holding the agent's client certificate (rendered through `tpl`), its keys, and
+  # where the two files are mounted. Keycloak identifies the agent by this certificate.
+  certSecretName: randoli-agent-cert
+  certKey: client-cert.pem
+  privateKeyKey: client-key.pem
+  mountPath: /app/certs
+
+  # -- Token route under the Keycloak origin; {realm} is replaced. A Keycloak without the legacy
+  # /auth prefix uses /realms/{realm}/protocol/openid-connect/token.
+  tokenPath: /auth/realms/{realm}/protocol/openid-connect/token
+
+  # -- Seconds one token call may take, and how many seconds before its expiry the token is
+  # fetched again.
+  timeoutSeconds: '60'
+  refreshMarginSeconds: '30'
+
+# ----------------------------------------------------------------------------
 # dataPlane: Randoli data plane services the agent reports back to.
 # Defaults match the randoli-agent umbrella chart's service names.
 # Standalone installs MUST override every value in this section.
 # ----------------------------------------------------------------------------
 dataPlane:
   agentCallbackUrl: http://randoli-agent:8080/
-
-  # -- Data plane URL (DATAPLANE_URL). Empty reads it from urlSecretName, the agent secret the
-  # platform agent's install creates in this namespace; set a value only to override that.
-  url: ''
-  # -- Secret holding the data plane URL (rendered through `tpl`), and its key. Optional: the env
-  # var is left unset when the secret has no such key.
-  urlSecretName: randoli-agent-secret
-  urlSecretKey: DATAPLANE_URL
 
   # -- PostgreSQL server of the data plane (the umbrella chart's randoli-db).
   # Values are rendered through `tpl`.

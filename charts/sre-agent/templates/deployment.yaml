@@ -49,16 +49,35 @@ spec:
                   name: {{ tpl $.Values.recommendationService.orgIdSecretName $ }}
                   key: {{ $.Values.recommendationService.orgIdSecretKey }}
               {{- end }}
-            - name: DATAPLANE_URL
-              {{- if $.Values.dataPlane.url }}
-              value: {{ $.Values.dataPlane.url | quote }}
+            - name: CONTROLPLANE_URL
+              {{- if $.Values.controlPlane.url }}
+              value: {{ $.Values.controlPlane.url | quote }}
               {{- else }}
               valueFrom:
                 secretKeyRef:
-                  name: {{ tpl $.Values.dataPlane.urlSecretName $ }}
-                  key: {{ $.Values.dataPlane.urlSecretKey }}
-                  optional: true
+                  name: {{ tpl $.Values.controlPlane.urlSecretName $ }}
+                  key: {{ $.Values.controlPlane.urlSecretKey }}
               {{- end }}
+            - name: KEYCLOAK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ tpl $.Values.keycloak.secretName $ }}
+                  key: {{ $.Values.keycloak.urlKey }}
+            - name: KEYCLOAK_REALM
+              valueFrom:
+                secretKeyRef:
+                  name: {{ tpl $.Values.keycloak.secretName $ }}
+                  key: {{ $.Values.keycloak.realmKey }}
+            - name: KEYCLOAK_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ tpl $.Values.keycloak.secretName $ }}
+                  key: {{ $.Values.keycloak.clientIdKey }}
+            - name: KEYCLOAK_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ tpl $.Values.keycloak.secretName $ }}
+                  key: {{ $.Values.keycloak.clientSecretKey }}
             {{- if eq $.Values.llm.provider "aws" }}
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
@@ -83,6 +102,9 @@ spec:
           volumeMounts:
             - name: tool-results
               mountPath: /var/lib/sre-agent/tool_results
+            - name: tls-certs
+              mountPath: {{ .Values.keycloak.mountPath }}
+              readOnly: true
           resources:
             limits:
               memory: 1Gi
@@ -93,6 +115,15 @@ spec:
         - name: tool-results
           emptyDir:
             sizeLimit: {{ .Values.analysis.toolResultStorageSizeLimit }}
+        - name: tls-certs
+          secret:
+            secretName: {{ tpl .Values.keycloak.certSecretName . }}
+            items:
+              - key: {{ .Values.keycloak.certKey }}
+                path: client-cert.pem
+              - key: {{ .Values.keycloak.privateKeyKey }}
+                path: client-key.pem
+            defaultMode: 420
       {{- if or .Values.tolerations .Values.global.tolerations }}
       tolerations:
         {{- with .Values.tolerations }}
