@@ -57,7 +57,6 @@ spec:
                 secretKeyRef:
                   name: {{ tpl $.Values.controlPlane.urlSecretName $ }}
                   key: {{ $.Values.controlPlane.urlSecretKey }}
-                  optional: true
               {{- end }}
             - name: KEYCLOAK_URL
               valueFrom:
