@@ -319,9 +319,9 @@ helm upgrade sre-agent randoli/sre-agent -n randoli-agents \
   (`llm.sideReadTimeoutSeconds`, 60s). The timeout is what a dead connection costs you, so raise the
   first one only if you see real calls being cut off, and leave the second one low.
 
-- **Idle connections** get dropped by NAT gateways and VPC endpoints after about 350 seconds, and
-  the agent only finds out when the next call hangs. So it makes one tiny call every
-  `llm.keepWarmSeconds` (240s) to keep the pool alive. Set it to `'0'` if you would rather not.
+- **Idle connections** get dropped by NAT gateways and VPC endpoints after about 350 seconds. The
+  agent's Bedrock sockets send TCP keepalive probes, so a dropped connection is found and replaced
+  before a call uses it.
 
 - Every setting, with its `values.yaml` key and what it changes, is in [Every setting](#every-setting). The [values.yaml](charts/sre-agent/values.yaml) file holds the defaults
 
@@ -348,10 +348,13 @@ These have no safe default. The agent cannot start without them.
 | `MODEL_FAMILY` | `llm.family` | `claude` | The model family of the profile: `claude` |
 | `MODEL_PRESET` | `llm.preset` | `balanced` | The preset of the profile: `balanced` |
 | `AWS_REGION` | `llm.region` | `us-east-1` | Bedrock region, sent only when `llm.provider` is `aws` |
-| `RECOMMENDATION_SERVICE_URL` | `recommendationService.url` | `http://insights-recommendation-service.app-insights-dev1.svc:8080` | Base URL of the insights-recommendation-service. The agent loads its model profile, prompts and schemas from it at startup and serves nothing until that load succeeds. The default is the service's own Service in dev1; a cluster that reaches it through the API gateway sets the gateway URL |
 | `ORGANIZATION_ID` | key `recommendationService.orgIdSecretKey` of `recommendationService.orgIdSecretName`, or `recommendationService.orgId` when set | `ORGANIZATION_ID` of `randoli-agent-secret` | The organisation's id, sent as `randoli-user-org-id`. The service answers `401 ORG_MISSING` without it. The secret is created by the platform agent's install in the same namespace, so no cluster sets a value by hand; `orgId` overrides it |
-| `RECOMMENDATION_MODEL_PROFILE_PATH`, `RECOMMENDATION_AGENT_PROMPTS_PATH`, `RECOMMENDATION_AGENT_SCHEMAS_PATH`, `RECOMMENDATION_RCA_FIX_SCHEMA_PATH`, `RECOMMENDATION_BLAST_SCORE_PATH` | `recommendationService.paths.*` | `/recommendations/api/v1/...` | The service's route paths |
-| `RECOMMENDATION_TIMEOUT_S`, `RECOMMENDATION_RETRY_MAX_S` | `recommendationService.timeoutSeconds`, `recommendationService.retryMaxSeconds` | `10`, `60` | Seconds one call may take, and the longest wait between startup retries |
+| `KEYCLOAK_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET` | keys `keycloak.urlKey`, `keycloak.realmKey`, `keycloak.clientIdKey`, `keycloak.clientSecretKey` of `keycloak.secretName` | the keys of the same names in `randoli-agent-secret` | Required. Where and as whom the agent fetches its JWT: a `password` grant with the client id and secret over mutual TLS, the same flow as the platform agent, so the same secret serves both. The token goes on every call to the service as `Authorization: Bearer`. The agent serves nothing until the token call succeeds |
+| `CLIENT_CERT_PATH`, `CLIENT_PRIVATE_KEY_PATH` | `keycloak.certSecretName`, `keycloak.certKey`, `keycloak.privateKeyKey`, `keycloak.mountPath` | `client-cert.pem` and `client-key.pem` of `randoli-agent-cert`, mounted at `/app/certs` | The client certificate the agent presents to Keycloak, which identifies the agent by it. Mounted read-only from the platform agent's certificate secret |
+| `KEYCLOAK_TOKEN_PATH` | `keycloak.tokenPath` | `/auth/realms/{realm}/protocol/openid-connect/token` | The token route under `KEYCLOAK_URL`; `{realm}` is replaced by the realm. A Keycloak without the legacy `/auth` prefix uses `/realms/{realm}/protocol/openid-connect/token` |
+| `KEYCLOAK_TIMEOUT_S`, `KEYCLOAK_REFRESH_MARGIN_S` | `keycloak.timeoutSeconds`, `keycloak.refreshMarginSeconds` | `60`, `30` | Seconds one token call may take, and how many seconds before its expiry the token is fetched again |
+| `RECOMMENDATION_MODEL_PROFILE_PATH`, `RECOMMENDATION_AGENT_PROMPTS_PATH`, `RECOMMENDATION_AGENT_SCHEMAS_PATH`, `RECOMMENDATION_RCA_FIX_SCHEMA_PATH`, `RECOMMENDATION_BLAST_SCORE_PATH` | `recommendationService.paths.*` | `/appdir/recommendations/v1/...` | The service's route paths on the control plane; the service itself serves them under `/recommendations/api/v1` |
+| `CONTROLPLANE_TIMEOUT_S`, `CONTROLPLANE_RETRY_MAX_S` | `controlPlane.timeoutSeconds`, `controlPlane.retryMaxSeconds` | `10`, `60` | Seconds one call to the control plane may take, and the longest wait between startup retries |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | keys in the `llm.credentialsSecretName` secret | | Bedrock credentials, read when `llm.provider` is `aws` |
 | `ANTHROPIC_API_KEY` | a key in the `llm.credentialsSecretName` secret | | The Anthropic API key, read when `llm.provider` is `anthropic` |
 | `DB_HOST`, `DB_PORT`, `DB_NAME` | `dataPlane.dbHost`, `dataPlane.dbPort`, `dataPlane.dbName` | `randoli-db`, `5432`, `randoli` | The platform's PostgreSQL datastore, which also holds the audit and chat tables |
@@ -359,7 +362,7 @@ These have no safe default. The agent cannot start without them.
 | `DB_USER` | `dataPlane.dbUser` | `sre_agent` | The agent's database role |
 | `DB_PASSWORD` | `dataPlane.databaseSecretName`, `dataPlane.databasePasswordKey` | `randoli-agent-db`, `sre-agent-password` | Read from this existing secret |
 | `AGENT_CALLBACK_URL` | `dataPlane.agentCallbackUrl` | `http://randoli-agent:8080/` | Where reports are POSTed when a request omits `callbackUrl` |
-| `DATAPLANE_URL` | key `dataPlane.urlSecretKey` of `dataPlane.urlSecretName`, or `dataPlane.url` when set | `DATAPLANE_URL` of `randoli-agent-secret` | The data plane URL, read from the agent secret the platform agent's install creates in the same namespace; `url` overrides it. Optional: left unset when the secret has no such key |
+| `CONTROLPLANE_URL` | key `controlPlane.urlSecretKey` of `controlPlane.urlSecretName`, or `controlPlane.url` when set | `CONTROLPLANE_URL` of `randoli-agent-secret` | The platform control plane, which hosts the insights-recommendation-service under `/appdir/recommendations/v1`. The agent loads its model profile, prompts and schemas from it at startup and serves nothing until that load succeeds. Read from the agent secret the platform agent's install creates in the same namespace; `url` overrides it. Required |
 | `PROMETHEUS_URL` | `observability.prometheusUrl` | `http://randoli-obs-prometheus:80` | Metrics backend |
 | `TEMPO_URL` | `observability.tempoUrl` | `http://randoli-obs-tempo:3200` | Trace backend |
 | `LOG_LOKI_URL` | `observability.lokiUrl` | `http://randoli-obs-loki:3100` | Log backend |
@@ -385,7 +388,6 @@ These have no safe default. The agent cannot start without them.
 | `LLM_READ_TIMEOUT_S` | `llm.readTimeoutSeconds` | `240` | Socket read timeout for the big reasoning calls |
 | `LLM_SIDE_READ_TIMEOUT_S` | `llm.sideReadTimeoutSeconds` | `60` | The same for the small side calls: compaction, chat titles |
 | `LLM_CONNECT_TIMEOUT_S` | `llm.connectTimeoutSeconds` | `10` | Socket connect timeout |
-| `LLM_KEEP_WARM_S` | `llm.keepWarmSeconds` | `240` | One tiny call on this interval keeps the connection pool alive, because NAT gateways drop idle sockets at about 350s. `0` turns it off |
 | `LLM_HELLO_RETRY_S` | `llm.helloRetrySeconds` | `600` | While the provider health shows a failure, the agent checks the provider again on this interval until a call succeeds. At least 60 |
 | `AGENT_VERSION` | none, the chart's `appVersion` | `0.4.0-rc.2` | The `version` the provider health route reports |
 | `LLM_STREAMING` | `llm.streaming` | `true` | Stream the loop call so the first token lands early |
@@ -433,9 +435,7 @@ These have no safe default. The agent cannot start without them.
 | `SRE_CHAT_INCIDENT_WINDOW_AFTER_HOURS` | `sreChat.incidentWindowAfterHours` | `1` | How far after it, or up to now if that is sooner |
 | `SRE_CHAT_TITLE_MAX_CHARS` | `sreChat.titleMaxChars` | `1000` | The chat title, and a name a user gives, is cut to this |
 | `SRE_CHAT_TITLE_TIMEOUT_S` | `sreChat.titleTimeoutSeconds` | `20` | A new chat is named before the agent starts. Past this the question's own text becomes the title |
-| `SRE_CHAT_MAX_RUNNING_TURNS` | `sreChat.maxRunningTurns` | `30` | Questions running at once |
-| `SRE_CHAT_MAX_WAITING_TURNS` | `sreChat.maxWaitingTurns` | `64` | How many may wait behind them. Past this a question is refused as busy |
-| `SRE_CHAT_WAIT_TIMEOUT_S` | `sreChat.waitTimeoutSeconds` | `30` | How long a question waits for a free place |
+| `SRE_CHAT_MAX_RUNNING_TURNS` | `sreChat.maxRunningTurns` | `30` | Questions running at once; one more is refused at once as busy, nothing waits |
 | `SRE_CHAT_KEEPALIVE_S` | not set, the default is used | `15` | Seconds of quiet on the answer stream before a keepalive comment is sent. It is a comment line, not a frame |
 
 ### MCP client
