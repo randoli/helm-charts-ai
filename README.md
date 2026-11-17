@@ -316,9 +316,9 @@ helm upgrade sre-agent randoli/sre-agent -n randoli-agents \
   (`llm.sideReadTimeoutSeconds`, 60s). The timeout is what a dead connection costs you, so raise the
   first one only if you see real calls being cut off, and leave the second one low.
 
-- **Idle connections** get dropped by NAT gateways and VPC endpoints after about 350 seconds, and
-  the agent only finds out when the next call hangs. So it makes one tiny call every
-  `llm.keepWarmSeconds` (240s) to keep the pool alive. Set it to `'0'` if you would rather not.
+- **Idle connections** get dropped by NAT gateways and VPC endpoints after about 350 seconds. The
+  agent's Bedrock sockets send TCP keepalive probes, so a dropped connection is found and replaced
+  before a call uses it.
 
 - Every setting, with its `values.yaml` key and what it changes, is in [Every setting](#every-setting). The [values.yaml](charts/sre-agent/values.yaml) file holds the defaults
 
@@ -381,7 +381,6 @@ These have no safe default. The agent cannot start without them.
 | `LLM_READ_TIMEOUT_S` | `llm.readTimeoutSeconds` | `240` | Socket read timeout for the big reasoning calls |
 | `LLM_SIDE_READ_TIMEOUT_S` | `llm.sideReadTimeoutSeconds` | `60` | The same for the small side calls: compaction, chat titles |
 | `LLM_CONNECT_TIMEOUT_S` | `llm.connectTimeoutSeconds` | `10` | Socket connect timeout |
-| `LLM_KEEP_WARM_S` | `llm.keepWarmSeconds` | `240` | One tiny call on this interval keeps the connection pool alive, because NAT gateways drop idle sockets at about 350s. `0` turns it off |
 | `LLM_HELLO_RETRY_S` | `llm.helloRetrySeconds` | `600` | While the provider health shows a failure, the agent checks the provider again on this interval until a call succeeds. At least 60 |
 | `AGENT_VERSION` | none, the chart's `appVersion` | `0.4.0-rc.2` | The `version` the provider health route reports |
 | `LLM_STREAMING` | `llm.streaming` | `true` | Stream the loop call so the first token lands early |
@@ -429,9 +428,7 @@ These have no safe default. The agent cannot start without them.
 | `SRE_CHAT_INCIDENT_WINDOW_AFTER_HOURS` | `sreChat.incidentWindowAfterHours` | `1` | How far after it, or up to now if that is sooner |
 | `SRE_CHAT_TITLE_MAX_CHARS` | `sreChat.titleMaxChars` | `1000` | The chat title, and a name a user gives, is cut to this |
 | `SRE_CHAT_TITLE_TIMEOUT_S` | `sreChat.titleTimeoutSeconds` | `20` | A new chat is named before the agent starts. Past this the question's own text becomes the title |
-| `SRE_CHAT_MAX_RUNNING_TURNS` | `sreChat.maxRunningTurns` | `30` | Questions running at once |
-| `SRE_CHAT_MAX_WAITING_TURNS` | `sreChat.maxWaitingTurns` | `64` | How many may wait behind them. Past this a question is refused as busy |
-| `SRE_CHAT_WAIT_TIMEOUT_S` | `sreChat.waitTimeoutSeconds` | `30` | How long a question waits for a free place |
+| `SRE_CHAT_MAX_RUNNING_TURNS` | `sreChat.maxRunningTurns` | `30` | Questions running at once; one more is refused at once as busy, nothing waits |
 | `SRE_CHAT_KEEPALIVE_S` | not set, the default is used | `15` | Seconds of quiet on the answer stream before a keepalive comment is sent. It is a comment line, not a frame |
 
 ### MCP client
