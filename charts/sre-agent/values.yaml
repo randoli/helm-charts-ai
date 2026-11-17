@@ -128,8 +128,6 @@ sreChat:
   titleMaxChars: '1000'
   titleTimeoutSeconds: '20'
   maxRunningTurns: '30'
-  maxWaitingTurns: '64'
-  waitTimeoutSeconds: '30'
 
 # ----------------------------------------------------------------------------
 # llm: LLM backend configuration
@@ -174,8 +172,6 @@ llm:
   sideReadTimeoutSeconds: '60'
 
   connectTimeoutSeconds: '10'
-
-  keepWarmSeconds: '240'
 
   helloRetrySeconds: '600'
 
