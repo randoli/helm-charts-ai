@@ -108,10 +108,13 @@ either to the workloads the agent itself runs on, so a chat or a runbook cannot 
   them, so Pod Disruption Budgets alone would not stop it either.
 - The policies need Kubernetes 1.30 or later (OpenShift 4.17 or later). On older clusters the chart
   leaves them out, and the server notes do not mention them.
-- A PodDisruptionBudget with `minAvailable: 1` for each protected workload keeps one replica up
-  through voluntary disruptions such as node drains. With a single replica, a drain of the node that
-  runs it cannot finish until someone moves the pod, which can stall a node upgrade. Pods that are
-  not healthy can still be evicted.
+- Optionally (`guardrails.podDisruptionBudgets: true`, off by default), a PodDisruptionBudget with
+  `minAvailable: 1` for each protected workload keeps one replica up through voluntary disruptions
+  such as node drains. Every protected workload runs a single replica, so the budget allows no
+  evictions at all: a drain of the node that runs it cannot finish until someone moves the pod, and
+  managed node-pool upgrades (AKS, EKS, GKE) fail. The budgets add nothing against the MCP servers,
+  which delete pods rather than evict them, so leave them off unless you run more replicas. Pods
+  that are not healthy can still be evicted.
 - The agent reads these policies from the cluster when it starts, the same way it reads the MCP
   server's RBAC, and adds them to the Kubernetes server's notes with an explanation. Its prompts treat
   a change the policies refuse as one it never makes or asks approval for, whoever asks,
@@ -121,7 +124,7 @@ either to the workloads the agent itself runs on, so a chat or a runbook cannot 
 | Value | What it does |
 |---|---|
 | `guardrails.enabled` | Turns the policies and the budgets on or off |
-| `guardrails.podDisruptionBudgets` | Turns the budgets on or off |
+| `guardrails.podDisruptionBudgets` | Turns the budgets on or off (default `false`; blocks node drains with single replicas) |
 | `guardrails.serviceAccounts` | More service accounts held to the same rules, each a `name` and an optional `namespace` |
 | `guardrails.workloads` | The protected workloads: `name`, `kind` (`Deployment` or `StatefulSet`), `matchLabels` of their pods, an optional `namespace`, and `allowScale: true` to allow scaling to one replica or more |
 
@@ -356,6 +359,7 @@ These have no safe default. The agent cannot start without them.
 | `DB_USER` | `dataPlane.dbUser` | `sre_agent` | The agent's database role |
 | `DB_PASSWORD` | `dataPlane.databaseSecretName`, `dataPlane.databasePasswordKey` | `randoli-agent-db`, `sre-agent-password` | Read from this existing secret |
 | `AGENT_CALLBACK_URL` | `dataPlane.agentCallbackUrl` | `http://randoli-agent:8080/` | Where reports are POSTed when a request omits `callbackUrl` |
+| `DATAPLANE_URL` | key `dataPlane.urlSecretKey` of `dataPlane.urlSecretName`, or `dataPlane.url` when set | `DATAPLANE_URL` of `randoli-agent-secret` | The data plane URL, read from the agent secret the platform agent's install creates in the same namespace; `url` overrides it. Optional: left unset when the secret has no such key |
 | `PROMETHEUS_URL` | `observability.prometheusUrl` | `http://randoli-obs-prometheus:80` | Metrics backend |
 | `TEMPO_URL` | `observability.tempoUrl` | `http://randoli-obs-tempo:3200` | Trace backend |
 | `LOG_LOKI_URL` | `observability.lokiUrl` | `http://randoli-obs-loki:3100` | Log backend |
