@@ -400,6 +400,7 @@ These have no safe default. The agent cannot start without them.
 | `RCA_MIN_CONFIDENCE_FOR_FIXES` | `analysis.minConfidenceForFixesRCA` | `8` | On the 1 to 9 scale, the lowest RCA confidence that still carries fixes. Below it the report drops them |
 | `AGENT_TOOL_CONCURRENCY` | `analysis.toolConcurrency` | `8` | Tool calls one step runs at once. Keep it at or below `TOOL_POOL_WORKERS` |
 | `MAX_TOOL_CALLS_PER_ITERATION` | `analysis.maxToolCallsPerIteration` | `5` | Tool calls one reply may run. The model is told the limit, and calls past it are not run. `0` means no limit |
+| `AGENT_PROGRESS_MODE` | `analysis.progressMode` | `reply_text` | Where the chat's live step line comes from: `reply_text` takes the text the model writes before its tool calls, `report_progress` binds a progress tool the model calls in every step (one to five sentences). The prompts carry only the chosen mode's instruction |
 | `TOOL_TRANSIENT_RETRIES` | `analysis.toolTransientRetries` | `2` | How often an agent may re-run a call whose server timed out or was unavailable |
 | `K8S_OPERATION_TIMEOUT_S` | `analysis.kubernetesOperationTimeoutSeconds` | `30` | How long an in-house Kubernetes change waits for the cluster to settle. Raising it above about 85 can outlive the tool's own call timeout |
 | `CREDENTIAL_KEY_PATTERN` | `analysis.credentialKeyPattern` | a regex over password, token, secret and similar | Which field names count as credentials, so their values are blanked before anything is stored or shown |
@@ -422,7 +423,7 @@ These have no safe default. The agent cannot start without them.
 |---|---|---|---|
 | `SRE_CHAT_MAX_ITERATIONS` | `sreChat.maxIterations` | `30` | Model calls one question may make. The last is told to answer from what it has. A reply to a clarification or an approval starts a new count |
 | `SRE_CHAT_HISTORY_COUNT` | `sreChat.historyCount` | `30` | Earlier questions listed as history on every new question, each as a thread id and a summary. In a chat about a correlation pair, half come from this chat and half from the user's other chats about the same pair, and a side with fewer gives its unused places to the other. The agent reads any of them in full |
-| `SRE_CHAT_MAX_CLARIFICATION_ROUNDS` | `sreChat.maxClarificationRounds` | `3` | Clarifying questions one question may ask. After this the agent answers with what it has |
+| `SRE_CHAT_MAX_CLARIFICATION_ROUNDS` | `sreChat.maxClarificationRounds` | `8` | Clarifying questions one question may ask. After this the agent answers with what it has |
 | `SRE_CHAT_RELATED_THREADS_PAGE_SIZE` | `sreChat.relatedThreadsPageSize` | `20` | Questions per page when the agent lists a user's other chats about the same correlation pair |
 | `SRE_CHAT_INCIDENT_WINDOW_BEFORE_HOURS` | `sreChat.incidentWindowBeforeHours` | `3` | How far before an incident's `occurredAt` a question about it reads. The window starts early because a problem usually begins before the detector records it |
 | `SRE_CHAT_INCIDENT_WINDOW_AFTER_HOURS` | `sreChat.incidentWindowAfterHours` | `1` | How far after it, or up to now if that is sooner |
