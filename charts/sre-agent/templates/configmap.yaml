@@ -88,6 +88,8 @@ data:
   AGENT_TOOL_CONCURRENCY: '{{ .Values.analysis.toolConcurrency }}'
   # The most tool calls one loop reply runs; calls past it are answered as not run.
   MAX_TOOL_CALLS_PER_ITERATION: '{{ .Values.analysis.maxToolCallsPerIteration }}'
+  # Where the live step line comes from: 'reply_text' or 'report_progress'.
+  AGENT_PROGRESS_MODE: '{{ .Values.analysis.progressMode | default "reply_text" }}'
 
   # '1h' keeps the cached prompt prefix warm across a whole run. Empty means the 5-minute default.
   PROMPT_CACHE_TTL: '{{ .Values.llm.promptCacheTtl }}'
