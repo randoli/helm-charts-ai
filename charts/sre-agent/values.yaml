@@ -84,6 +84,10 @@ analysis:
   # -- The most tool calls one loop reply runs, bash reads and task list updates included. Calls past
   # it get a not-run result asking for them in the next reply; the prompt states the number. '0' removes the limit.
   maxToolCallsPerIteration: '5'
+  # -- Where the chat's live step line comes from. 'reply_text': the text the model writes before its
+  # tool calls. 'report_progress': a progress tool the model calls in every step, one to five sentences.
+  # The prompts carry only the instruction for the chosen mode.
+  progressMode: 'reply_text'
   toolTransientRetries: '2'
   # -- One tool result an agent reads whole is at most this share of the model's window, in percent,
   # and at most toolResultMaxTokens. A larger result is saved to a file in the pod, and the agent
@@ -117,7 +121,7 @@ sreChat:
   # -- Max tool-loop iterations per turn.
   maxIterations: '30'
   # -- How many times it may ask the user a clarifying question before it must answer regardless.
-  maxClarificationRounds: '3'
+  maxClarificationRounds: '8'
   # -- Earlier questions listed as history; in a chat about a correlation pair, half from this chat and half from the user's other chats about it.
   historyCount: '30'
   relatedThreadsPageSize: '20'
